@@ -3,19 +3,22 @@
 // O corpo do e-mail é desenhado num iframe sem script (sandbox) com o HTML já higienizado no servidor; imagens externas
 // só carregam com "Mostrar imagens".
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature } from 'lucide-react';
+import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
-import { notify, askConfirm } from '../ui/dialogs.jsx';
-import { apiGet, apiPost } from '../lib/api.js';
+import { notify, askConfirm, askText } from '../ui/dialogs.jsx';
+import { apiGet, apiPost, apiPatch } from '../lib/api.js';
 import { BrandLogo, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
 import MailFrame from './MailFrame.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
+import { MoveDialog, RulesDialog } from './Folders.jsx';
 import './mail.css';
 
 const FOLDER_ICON = { INBOX: Inbox, STARRED: Star, SENT: Send, DRAFT: FileText, ARCHIVE: Archive, SPAM: AlertOctagon, TRASH: Trash2 };
 const REFRESH_MS = 60 * 1000;
+const isLabel = (id) => /^Label_/.test(String(id || ''));
+const canNotify = () => typeof window !== 'undefined' && 'Notification' in window;
 
 function fmtListDate(iso) {
   if (!iso) return '';
@@ -51,7 +54,12 @@ export default function MailScreen({ currentUser, theme }) {
   const [signature, setSignature] = useState(null);
   const [sigOpen, setSigOpen] = useState(false);
   const [threadRev, setThreadRev] = useState(0);
+  const [moveFor, setMoveFor] = useState(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [notifPerm, setNotifPerm] = useState(() => (canNotify() ? Notification.permission : 'unsupported'));
   const reqRef = useRef(0);
+  const composeRef = useRef(null);
+  const seenUnread = useRef(null);
 
   const loadStatus = useCallback(async (fresh) => {
     try { setStatus(await apiGet(`/api/mail/status${fresh ? '?fresh=1' : ''}`)); } catch (e) { setStatus({ configured: true, connected: false, mail: false, error: e.message }); }
@@ -113,6 +121,117 @@ export default function MailScreen({ currentUser, theme }) {
     return () => clearInterval(t);
   }, [ready, loadNav, loadThreads]);
 
+  // Aviso de e-mail novo (enquanto a tela de E-mail estiver aberta): compara as não lidas da Entrada com as já vistas.
+  const checkNew = useCallback(async () => {
+    try {
+      const { threads: peek } = await apiGet('/api/mail/inbox-peek');
+      const known = seenUnread.current;
+      seenUnread.current = new Set([...(known || []), ...peek.map((t) => t.id)]);
+      if (!known) return;
+      const fresh = peek.filter((t) => !known.has(t.id));
+      if (!fresh.length) return;
+      if (folder === 'INBOX' && !search) loadThreads({ quiet: true });
+      loadNav();
+      fresh.slice(0, 3).forEach((t) => {
+        const from = t.from.map(who).join(', ') || 'remetente desconhecido';
+        notify(`Novo e-mail de ${from}: ${t.subject}`, { actionLabel: 'Abrir', onAction: () => { setSearch(''); setFolder('INBOX'); setOpenId(t.id); }, ttlMs: 8000 });
+        if (canNotify() && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+          try {
+            const n = new Notification(`Novo e-mail de ${from}`, { body: t.subject, tag: `mail-${t.id}`, icon: '/favicon.ico' });
+            n.onclick = () => { window.focus(); setSearch(''); setFolder('INBOX'); setOpenId(t.id); n.close(); };
+          } catch { /* navegador sem suporte a Notification fora do service worker */ }
+        }
+      });
+      if (fresh.length > 3) notify(`Mais ${fresh.length - 3} e-mails novos na Caixa de entrada.`);
+    } catch { /* o aviso é um extra: falha silenciosa, a lista continua com o próprio erro */ }
+  }, [folder, search, loadThreads, loadNav]);
+
+  useEffect(() => {
+    if (!ready) return undefined;
+    checkNew();
+    const t = setInterval(checkNew, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [ready, checkNew]);
+
+  const inboxUnread = (nav.folders.find((f) => f.id === 'INBOX') || {}).unread || 0;
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\) /, '');
+    document.title = inboxUnread ? `(${inboxUnread}) ${base}` : base;
+    return () => { document.title = document.title.replace(/^\(\d+\) /, ''); };
+  }, [inboxUnread]);
+
+  async function askNotifications() {
+    if (!canNotify()) return;
+    const p = await Notification.requestPermission();
+    setNotifPerm(p);
+    notify(p === 'granted' ? 'Avisos ligados: você recebe um alerta do computador quando chegar e-mail com o painel aberto.' : 'O navegador não liberou os avisos. Dá para liberar no cadeado ao lado do endereço.', { tone: p === 'granted' ? 'success' : 'info' });
+  }
+
+  async function moveTo(ids, label, rule) {
+    const from = isLabel(folder) && folder !== label.id ? folder : null;
+    const add = [label.id];
+    const remove = ['INBOX', ...(from ? [from] : [])];
+    const before = threads;
+    if (!search) dropThreads(ids);
+    setMoveFor(null);
+    try {
+      await apiPost('/api/mail/threads/modify', { ids, action: 'labels', add, remove });
+      let extra = '';
+      if (rule) {
+        try {
+          const r = await apiPost('/api/mail/rules', { from: rule.from, labelId: label.id, applyExisting: rule.applyExisting });
+          extra = ` Regra criada: os próximos e-mails de ${rule.from} vão direto para lá${r.moved ? ` (${r.moved} conversa${r.moved > 1 ? 's' : ''} antiga${r.moved > 1 ? 's' : ''} também)` : ''}.`;
+          if (r.moved && folder === 'INBOX') loadThreads({ quiet: true });
+        } catch (e) { notify(e.message, { tone: 'error' }); }
+      }
+      const n = ids.length > 1 ? ` (${ids.length})` : '';
+      notify(`Movido para “${label.name}”${n}.${extra}`, { undo: async () => { await apiPost('/api/mail/threads/modify', { ids, action: 'labels', add: remove, remove: add }); loadThreads({ quiet: true }); loadNav(); } });
+      loadNav();
+    } catch (e) {
+      setThreads(before);
+      notify(e.message, { tone: 'error' });
+    }
+  }
+
+  async function newFolder() {
+    const name = await askText({ title: 'Nova pasta', label: 'Nome da pasta (use / para subpasta, ex.: Clientes/KUHN)', confirmLabel: 'Criar' });
+    if (!name || !name.trim()) return;
+    try { await apiPost('/api/mail/labels', { name: name.trim() }); notify('Pasta criada.', { tone: 'success' }); loadNav(); } catch (e) { notify(e.message, { tone: 'error' }); }
+  }
+
+  async function renameFolder(l) {
+    const name = await askText({ title: 'Renomear pasta', label: 'Novo nome', defaultValue: l.name, confirmLabel: 'Renomear' });
+    if (!name || !name.trim() || name.trim() === l.name) return;
+    try { await apiPatch(`/api/mail/labels/${encodeURIComponent(l.id)}`, { name: name.trim() }); notify('Pasta renomeada.', { tone: 'success' }); loadNav(); } catch (e) { notify(e.message, { tone: 'error' }); }
+  }
+
+  // Arrastar conversas da lista para uma pasta (as selecionadas, se a arrastada estiver entre elas).
+  const dragIds = (id) => (selected.has(id) ? [...selected] : [id]);
+  const dropProps = (target) => ({
+    onDragOver: (e) => { if (e.dataTransfer.types.includes('application/x-pt-threads')) { e.preventDefault(); e.currentTarget.classList.add('drop'); } },
+    onDragLeave: (e) => e.currentTarget.classList.remove('drop'),
+    onDrop: (e) => {
+      e.currentTarget.classList.remove('drop');
+      const raw = e.dataTransfer.getData('application/x-pt-threads');
+      if (!raw) return;
+      e.preventDefault();
+      const ids = JSON.parse(raw);
+      if (target === 'INBOX') act(ids, 'inbox'); else if (target === 'TRASH') act(ids, 'trash'); else if (target === 'ARCHIVE') act(ids, 'archive'); else moveTo(ids, target);
+    },
+  });
+
+  async function openDraft(threadId) {
+    try {
+      const { draftId } = await apiGet(`/api/mail/drafts/by-thread/${encodeURIComponent(threadId)}`);
+      openCompose({ draftId });
+    } catch (e) { notify(e.message, { tone: 'error' }); }
+  }
+
+  const onDraftChange = useCallback(() => {
+    if (folder === 'DRAFT' && !search) loadThreads({ quiet: true });
+    loadNav();
+  }, [folder, search, loadThreads, loadNav]);
+
   function pickFolder(id) {
     setSearch(''); setQuery(''); setFolder(id); setOpenId(null);
   }
@@ -165,8 +284,9 @@ export default function MailScreen({ currentUser, theme }) {
     apiPost('/api/mail/threads/modify', { ids: [id], action: 'read' }).then(loadNav).catch(() => {});
   }, [loadNav]);
 
+  // Só uma janela de escrita por vez: a que estava aberta é guardada em Rascunhos antes de abrir a outra.
   async function openCompose(next) {
-    if (compose && !(await askConfirm({ title: 'Trocar de mensagem?', message: 'Já existe uma mensagem sendo escrita. Ela será descartada.', confirmLabel: 'Descartar e abrir', danger: true }))) return;
+    if (compose && composeRef.current && !(await composeRef.current.close())) return;
     setCompose({ ...next, key: Date.now() });
   }
 
@@ -216,21 +336,36 @@ export default function MailScreen({ currentUser, theme }) {
                 const Icon = FOLDER_ICON[f.id] || Tag;
                 const count = f.id === 'DRAFT' ? f.total : f.unread;
                 return (
-                  <button key={f.id} type="button" className={`mail-folder${!search && folder === f.id ? ' on' : ''}`} onClick={() => pickFolder(f.id)} aria-current={!search && folder === f.id ? 'page' : undefined}>
+                  <button key={f.id} type="button" className={`mail-folder${!search && folder === f.id ? ' on' : ''}`} onClick={() => pickFolder(f.id)} aria-current={!search && folder === f.id ? 'page' : undefined} {...(['INBOX', 'ARCHIVE', 'TRASH'].includes(f.id) ? dropProps(f.id) : {})}>
                     <Icon size={15} aria-hidden="true" /><span>{f.name}</span>{count ? <b className="mail-count">{count}</b> : null}
                   </button>
                 );
               })}
-              {nav.labels.length > 0 && <div className="mail-nav-title">Marcadores</div>}
+              <div className="mail-nav-title mail-nav-title-row">
+                <span>Pastas</span>
+                <button type="button" className="mail-ic" aria-label="Nova pasta" title="Nova pasta" onClick={newFolder}><FolderPlus size={14} aria-hidden="true" /></button>
+              </div>
               {nav.labels.map((l) => (
-                <button key={l.id} type="button" className={`mail-folder${!search && folder === l.id ? ' on' : ''}`} onClick={() => pickFolder(l.id)} title={l.name}>
-                  <Tag size={14} aria-hidden="true" style={l.color ? { color: l.color } : undefined} /><span>{l.name}</span>{l.unread ? <b className="mail-count">{l.unread}</b> : null}
-                </button>
+                <div key={l.id} className="mail-folder-row" {...dropProps(l)}>
+                  <button type="button" className={`mail-folder${!search && folder === l.id ? ' on' : ''}`} onClick={() => pickFolder(l.id)} title={l.name} aria-current={!search && folder === l.id ? 'page' : undefined}>
+                    <Tag size={14} aria-hidden="true" style={l.color ? { color: l.color } : undefined} /><span>{l.name}</span>{l.unread ? <b className="mail-count">{l.unread}</b> : null}
+                  </button>
+                  <button type="button" className="mail-ic mail-folder-edit" aria-label={`Renomear a pasta ${l.name}`} title="Renomear" onClick={() => renameFolder(l)}><Pencil size={12} aria-hidden="true" /></button>
+                </div>
               ))}
+              {!nav.labels.length && <button type="button" className="mail-folder mail-folder-hint" onClick={newFolder}><FolderPlus size={14} aria-hidden="true" /><span>Criar a primeira pasta</span></button>}
               <div className="mail-nav-title">Configurar</div>
               <button type="button" className="mail-folder" onClick={() => setSigOpen(true)} disabled={!signature}>
                 <Signature size={14} aria-hidden="true" /><span>Assinatura</span>
               </button>
+              <button type="button" className="mail-folder" onClick={() => setRulesOpen(true)}>
+                <ListFilter size={14} aria-hidden="true" /><span>Regras</span>
+              </button>
+              {notifPerm === 'default' && (
+                <button type="button" className="mail-folder" onClick={askNotifications} title="Alerta do computador quando chegar e-mail (com o painel aberto)">
+                  <Bell size={14} aria-hidden="true" /><span>Ativar avisos</span>
+                </button>
+              )}
             </nav>
           )}
 
@@ -249,13 +384,14 @@ export default function MailScreen({ currentUser, theme }) {
                 {selIds.length ? (
                   <>
                     <span className="mail-list-title">{selIds.length} selecionada{selIds.length > 1 ? 's' : ''}</span>
-                    <BulkActions folder={folder} onAct={(a) => act(selIds, a)} onClear={() => setSelected(new Set())} />
+                    <BulkActions folder={folder} onAct={(a) => act(selIds, a)} onMove={() => setMoveFor({ ids: selIds })} onClear={() => setSelected(new Set())} />
                   </>
                 ) : (
                   <>
                     <span className="mail-list-title">{folderName}</span>
                     <div className="mail-actions">
                       {isMobile && <IconButton label="Assinatura do e-mail" icon={Signature} size="sm" onClick={() => setSigOpen(true)} disabled={!signature} />}
+                      {isMobile && <IconButton label="Regras do e-mail" icon={ListFilter} size="sm" onClick={() => setRulesOpen(true)} />}
                       <IconButton label="Atualizar" icon={RefreshCw} size="sm" onClick={() => { loadThreads(); loadNav(); }} />
                     </div>
                   </>
@@ -271,7 +407,9 @@ export default function MailScreen({ currentUser, theme }) {
                   <li
                     key={t.id}
                     className={`mail-row${t.unread ? ' unread' : ''}${openId === t.id ? ' open' : ''}${selected.has(t.id) ? ' sel' : ''}`}
-                    {...activateRow(() => setOpenId(t.id))}
+                    {...activateRow(() => (folder === 'DRAFT' && !search ? openDraft(t.id) : setOpenId(t.id)))}
+                    draggable={!isMobile && folder !== 'DRAFT'}
+                    onDragStart={(e) => { e.dataTransfer.setData('application/x-pt-threads', JSON.stringify(dragIds(t.id))); e.dataTransfer.effectAllowed = 'move'; }}
                     aria-label={`${t.unread ? 'Não lido. ' : ''}${t.from.map(who).join(', ')}: ${t.subject}`}
                   >
                     <input
@@ -307,6 +445,7 @@ export default function MailScreen({ currentUser, theme }) {
                   key={`${openId}-${threadRev}`} id={openId} isMobile={isMobile} folder={folder} myEmail={status && status.email}
                   onBack={() => setOpenId(null)} onOpened={onOpened} onAct={(a) => act([openId], a)}
                   onCompose={(mode, messageId) => openCompose({ mode, messageId })}
+                  onMove={(sender) => setMoveFor({ ids: [openId], sender })} onOpenDraft={() => openDraft(openId)}
                 />
               ) : (
                 <EmptyState icon={MailOpen} title="Escolha um e-mail para ler" description="Clique numa conversa da lista. Ela é marcada como lida ao abrir, como no Outlook." />
@@ -321,9 +460,17 @@ export default function MailScreen({ currentUser, theme }) {
       {compose && (
         <Compose
           key={compose.key} init={compose} signature={signature} isMobile={isMobile}
-          onClose={() => setCompose(null)} onSent={onSent} onEditSignature={() => setSigOpen(true)}
+          ref={composeRef} onClose={() => setCompose(null)} onSent={onSent} onEditSignature={() => setSigOpen(true)} onDraftChange={onDraftChange}
         />
       )}
+      {moveFor && (
+        <MoveDialog
+          labels={nav.labels} count={moveFor.ids.length} sender={moveFor.sender} canRules={!!(status && status.rules)} currentLabel={isLabel(folder) ? folder : null}
+          onClose={() => setMoveFor(null)} onMove={(label, rule) => moveTo(moveFor.ids, label, rule)}
+          onCreated={(l) => setNav((n) => ({ ...n, labels: [...n.labels, { ...l, unread: 0 }].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) }))}
+        />
+      )}
+      {rulesOpen && <RulesDialog canRules={!!(status && status.rules)} onClose={() => setRulesOpen(false)} />}
       {sigOpen && signature && <SignatureDialog value={signature} onClose={() => setSigOpen(false)} onSaved={(r) => { setSignature(r); setSigOpen(false); }} />}
     </div>
   );
@@ -348,9 +495,10 @@ function ConnectCard({ status }) {
   );
 }
 
-function BulkActions({ folder, onAct, onClear }) {
+function BulkActions({ folder, onAct, onMove, onClear }) {
   return (
     <div className="mail-actions">
+      {folder !== 'TRASH' && folder !== 'DRAFT' && <IconButton label="Mover para pasta" icon={FolderInput} size="sm" onClick={onMove} />}
       {folder === 'TRASH' ? <IconButton label="Restaurar" icon={Undo2} size="sm" onClick={() => onAct('untrash')} />
         : folder === 'INBOX' ? <IconButton label="Arquivar" icon={Archive} size="sm" onClick={() => onAct('archive')} />
           : <IconButton label="Mover para a Caixa de entrada" icon={Inbox} size="sm" onClick={() => onAct('inbox')} />}
@@ -362,7 +510,7 @@ function BulkActions({ folder, onAct, onClear }) {
   );
 }
 
-function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, onCompose }) {
+function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
@@ -395,6 +543,12 @@ function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, on
           {data.inTrash ? <IconButton label="Restaurar" icon={Undo2} size="sm" onClick={() => onAct('untrash')} />
             : data.inInbox ? <IconButton label="Arquivar" icon={Archive} size="sm" onClick={() => onAct('archive')} />
               : <IconButton label="Mover para a Caixa de entrada" icon={Inbox} size="sm" onClick={() => { onAct('inbox'); setData((d) => ({ ...d, inInbox: true, inSpam: false })); }} />}
+          {!data.inTrash && (
+            <IconButton
+              label="Mover para pasta" icon={FolderInput} size="sm"
+              onClick={() => { const last = [...data.messages].reverse().find((m) => !m.sent && m.from && m.from.email); onMove(last ? last.from : null); }}
+            />
+          )}
           {!data.inTrash && <IconButton label="Mover para a Lixeira" icon={Trash2} size="sm" onClick={() => onAct('trash')} />}
           {!data.inSpam && !data.inTrash && folder !== 'SENT' && <IconButton label="Marcar como spam" icon={AlertOctagon} size="sm" onClick={() => onAct('spam')} />}
           <IconButton label="Marcar como não lido" icon={Mail} size="sm" onClick={() => { onAct('unread'); onBack(); }} />
@@ -420,7 +574,10 @@ function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, on
             <span className="mail-date" title={fmtFullDate(m.date)}><span className="mail-date-full">{fmtFullDate(m.date)}</span><span className="mail-date-short">{fmtListDate(m.date)}</span></span>
           </header>
           {expanded.has(m.id) && <MessageBody msg={m} />}
-          {expanded.has(m.id) && (
+          {expanded.has(m.id) && m.draft && (
+            <div className="mail-reply-bar"><Button size="sm" variant="primary" icon={PencilLine} onClick={onOpenDraft}>Continuar rascunho</Button></div>
+          )}
+          {expanded.has(m.id) && !m.draft && (
             <div className="mail-reply-bar">
               <Button size="sm" icon={Reply} onClick={() => onCompose('reply', m.id)}>Responder</Button>
               {replyAllCount(m, myEmail) > 1 && <Button size="sm" icon={ReplyAll} onClick={() => onCompose('replyAll', m.id)}>Responder a todos</Button>}

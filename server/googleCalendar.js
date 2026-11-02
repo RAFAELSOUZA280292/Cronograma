@@ -11,6 +11,8 @@ import { seal, open } from './secretBox.js';
 const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 // Caixa de e-mail (2026-11-02): o mesmo login do Google, com o Gmail acrescentado só quando a pessoa conecta pela tela de E-mail.
 export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+// Regras "sempre mover e-mails de fulano para a pasta X" (filtros do Gmail): pedido junto com o e-mail desde 2026-11-02.
+export const GMAIL_SETTINGS_SCOPE = 'https://www.googleapis.com/auth/gmail.settings.basic';
 
 function oauthClient() {
   return new google.auth.OAuth2(
@@ -34,7 +36,7 @@ export function getAuthUrl(state, { mail = false } = {}) {
     prompt: 'consent',
     // Mantém o que já foi concedido antes: reconectar a agenda não derruba o e-mail, e vice-versa.
     include_granted_scopes: true,
-    scope: mail ? [...SCOPES, GMAIL_SCOPE] : SCOPES,
+    scope: mail ? [...SCOPES, GMAIL_SCOPE, GMAIL_SETTINGS_SCOPE] : SCOPES,
   });
 }
 

@@ -9,17 +9,17 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 
 **Confirmado pelo Rafael em 02/11:** mover coluna entre páginas do Meu quadro funciona no uso real dele.
 
-**Em andamento — Caixa de e-mail (§116zw–§116zx):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) no ar e confirmada pelo Rafael. **Fase 2 publicada em 02/11 (01h08, `6f3f74c`):** Escrever, Responder, Responder a todos, Encaminhar (com os anexos originais), anexos até 20 MB e assinatura por pessoa com logo embutido (E-mail › Assinatura), e-mail montado para Outlook/celular (`server/mailCompose.js`). Fase 3 (CRM, aviso de e-mail novo, atalhos, rascunhos) vem em conversa própria.
+**Em andamento — Caixa de e-mail (§116zw–§116zy):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) no ar e confirmada pelo Rafael. **Fase 2 publicada em 02/11 (01h08, `6f3f74c`):** Escrever, Responder, Responder a todos, Encaminhar (com os anexos originais), anexos até 20 MB e assinatura por pessoa com logo embutido (E-mail › Assinatura), e-mail montado para Outlook/celular (`server/mailCompose.js`). **Pacote de produtividade publicado em 02/11 (§116zy):** mover para pasta (botão e arrastar), criar/renomear pastas, regras "sempre mover os e-mails de fulano" (filtros do Gmail), rascunho salvo sozinho e reabrível, sugestão de destinatários (Gmail + CRM) e aviso de e-mail novo com a tela aberta. Próximos pacotes combinados: **visual** (largura das colunas, leitura à direita/embaixo/desligada, lista compacta, atalhos) e **configurações** (resposta automática, filtros, assinatura no Gmail, encaminhamento).
 
 **Pendências do Rafael** (nenhuma depende de código):
-- **Caixa de e-mail:** conferir a assinatura em E-mail › Assinatura e mandar um e-mail de teste para um endereço **Outlook** e para o **celular** (logo, acentos no assunto, citação, anexo); as outras pessoas conectam o próprio Gmail em `/email`.
+- **Caixa de e-mail:** **reconectar o Gmail uma vez** em `/email` (Configurar › Regras pede) para liberar as regras; conferir a assinatura em E-mail › Assinatura e mandar um e-mail de teste para um endereço **Outlook** e para o **celular** (logo, acentos no assunto, citação, anexo); as outras pessoas conectam o próprio Gmail em `/email`.
 - Revogar e recriar as chaves que apareceram em prints do `.env` (IA, Voyage, tokens `pxk_`, Google, Railway).
 - Testar o convite com Meet de verdade: Reunião com horário, contato com o e-mail dele e o campo de convite marcado.
 - Briefing diário: manter para todos (como está) ou pedir uma trava por pessoa para virar piloto; ouvir a Eduarda (15 min).
 - Letra de 12,5 px: padronizar em 13 px? Conferir na Railway se existe um proxy que lê `X-Api-Key`. Ler `GET /api/ops-intel/payloads` como Master em alguns dias (se `GET /api/projects` passar de ~1 MB, reabrir o item E4).
 - Resumo semanal (segunda-feira): **não existe**; só se o Rafael quiser, e antes uma proposta.
 
-**Não testado de verdade:** Caixa de e-mail além da abertura (ações, anexos, caixa grande e celular só com respostas simuladas; **envio real, Outlook e celular recebendo** dependem do teste do Rafael); iPad/iPhone e Windows reais (só Chromium); Google real (Meet e e-mail do convite); IA real (busca por significado e estudo de pareceres: a chave local da Voyage é inválida).
+**Não testado de verdade:** Caixa de e-mail além da abertura (ações, anexos, pastas, regras, rascunhos, sugestões, caixa grande e celular só com respostas simuladas; **envio real, Outlook e celular recebendo** dependem do teste do Rafael); iPad/iPhone e Windows reais (só Chromium); Google real (Meet e e-mail do convite); IA real (busca por significado e estudo de pareceres: a chave local da Voyage é inválida).
 
 **Dívidas conhecidas:** botão dentro de botão nos cartões do quadro (axe `nested-interactive`, no baseline); Esc dentro do editor de descrição do cartão fecha só no segundo toque; imports sem uso antigos; `scripts/renata-tools.test.mjs` falha em `preferencia_guardar` (já falhava antes); `body` com a margem padrão de 8 px.
 

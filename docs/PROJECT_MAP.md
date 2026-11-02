@@ -54,6 +54,7 @@ src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica 
 src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de status/severidade/prioridade, helpers. 2026-10-02: colar print (Ctrl+V) e arrastar imagem nas TASKs — helpers `clipboardImageFiles`/`imageFilesFrom`/`readEvidenceFile`, `ContentField` ganha `onPasteImage`, comentário aceita colar/arrastar, Ctrl+V sem foco anexa em Evidências, `FlashToast` — ver PROJECT_CONTEXT.md §64.
 src/agenda/Agenda.jsx    Módulo Agenda (2026-08) — visão dia/semana/mês da disponibilidade (Google + XFlow + atividades), toggle de privacidade.
 src/mail/MailScreen.jsx  Caixa de e-mail (2026-11-02, §116zw) — /email: pastas, lista e leitura do Gmail da pessoa (iframe sandbox), ações com Desfazer; mail.css.
+src/mail/Folders.jsx     Caixa de e-mail (§116zy) — MoveDialog (mover para pasta, criar pasta, regra "sempre mover") e RulesDialog (filtros do Gmail).
 src/mail/Compose.jsx     Caixa de e-mail, Fase 2 (§116zx) — janela de escrita: novo/responder/responder a todos/encaminhar, editor Tiptap, anexos (20 MB), prévia da assinatura e da citação.
 src/mail/SignatureDialog.jsx  Assinatura por pessoa (§116zx) — campos + prévia; grava em users.preferences.mail.signature.
 src/mail/MailFrame.jsx   iframe sandbox que desenha o HTML do e-mail (leitura e prévias).

@@ -5,7 +5,7 @@
 
 import { google } from 'googleapis';
 import sanitizeHtml from 'sanitize-html';
-import { getAuthedClientForUser, GMAIL_SCOPE, googleConfigured } from './googleCalendar.js';
+import { getAuthedClientForUser, GMAIL_SCOPE, GMAIL_SETTINGS_SCOPE, googleConfigured } from './googleCalendar.js';
 
 // Pastas fixas da tela. `label` = marcador do Gmail; `q` = pesquisa (o "Arquivo" do Gmail não é um marcador).
 export const FOLDERS = {
@@ -194,14 +194,15 @@ export async function mailStatus(userId) {
   const g = await gmailFor(userId);
   if (!g) return { configured: true, connected: false, mail: false };
   const hit = scopeCache.get(userId);
-  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return { configured: true, connected: true, mail: hit.ok, email: hit.email };
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return { configured: true, connected: true, mail: hit.ok, email: hit.email, rules: hit.rules };
   try {
     const { token } = await g.client.getAccessToken();
     const info = await g.client.getTokenInfo(token);
     const ok = (info.scopes || []).includes(GMAIL_SCOPE);
+    const rules = (info.scopes || []).includes(GMAIL_SETTINGS_SCOPE);
     const email = ok ? (await g.gmail.users.getProfile({ userId: 'me' })).data.emailAddress : (info.email || null);
-    scopeCache.set(userId, { ok, email, at: Date.now() });
-    return { configured: true, connected: true, mail: ok, email };
+    scopeCache.set(userId, { ok, email, rules, at: Date.now() });
+    return { configured: true, connected: true, mail: ok, email, rules };
   } catch (e) {
     return { configured: true, connected: true, mail: false, error: friendlyMailError(e) };
   }

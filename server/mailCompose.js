@@ -251,7 +251,8 @@ export function signatureText(sig) {
 export function composeBody({ html, signature, quote }) {
   const userHtml = sanitizeOutgoingHtml(html);
   const sigHtml = signature ? signatureHtml(signature) : '';
-  const parts = [`<div style="${TEXT_STYLE}">${userHtml || '<br>'}</div>`];
+  // Os marcadores em comentário deixam reabrir o rascunho com só o texto da pessoa (sem assinatura e citação), ver `draftBodyHtml`.
+  const parts = [`<div style="${TEXT_STYLE}"><!--pt-body-->${userHtml || '<br>'}<!--/pt-body--></div>`];
   if (sigHtml) parts.push(`<br><div style="${TEXT_STYLE}">${sigHtml}</div>`);
   if (quote) parts.push(`<br><div>${quote.html}</div>`);
   const doc = '<!DOCTYPE html><html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">'
@@ -284,6 +285,7 @@ export function buildMime(msg) {
   const ref = (s) => oneLine(s).split(/\s+/).filter((x) => /^<[^<>\s]+>$/.test(x));
   if (msg.inReplyTo && ref(msg.inReplyTo).length) head.push(`In-Reply-To: ${ref(msg.inReplyTo)[0]}`);
   if (msg.references && ref(msg.references).length) head.push(`References: ${ref(msg.references).slice(-20).join(`${CRLF} `)}`);
+  for (const [k, v] of msg.headers || []) if (/^X-[A-Za-z0-9-]{1,40}$/.test(k)) head.push(`${k}: ${oneLine(v).slice(0, 900)}`);
   head.push('MIME-Version: 1.0');
 
   const textPart = ['Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: quoted-printable', '', qpEncode(msg.text || '')].join(CRLF);
@@ -315,4 +317,30 @@ export function sizeError(bytes) {
   if (bytes <= MAX_ATTACH_BYTES) return null;
   const mb = (bytes / 1024 / 1024).toFixed(1).replace('.', ',');
   return `Os anexos somam ${mb} MB e o limite é 20 MB por e-mail. Tire algum arquivo ou mande um link do Google Drive.`;
+}
+
+// --- Rascunhos (2026-11-02, pacote de produtividade) -----------------------------------------------------------------
+// O rascunho fica no Gmail (aparece em Rascunhos no Gmail e no celular) e já leva assinatura e citação montadas. Para o painel
+// reabrir na mesma janela, o modo/mensagem original vão num cabeçalho próprio e o texto da pessoa entre marcadores.
+export const DRAFT_HEADER = 'X-PT-Compose';
+
+export function draftMeta({ mode, messageId, includeQuote, signature }) {
+  const m = ['new', 'reply', 'replyAll', 'forward'].includes(mode) ? mode : 'new';
+  return Buffer.from(JSON.stringify({ m, o: m === 'new' ? '' : String(messageId || '').slice(0, 64), q: includeQuote !== false, s: signature !== false })).toString('base64url');
+}
+
+export function parseDraftMeta(value) {
+  try {
+    const j = JSON.parse(Buffer.from(String(value || ''), 'base64url').toString('utf8'));
+    const mode = ['new', 'reply', 'replyAll', 'forward'].includes(j.m) ? j.m : 'new';
+    return { mode, messageId: mode === 'new' ? '' : String(j.o || ''), includeQuote: j.q !== false, signature: j.s !== false };
+  } catch { return null; }
+}
+
+export function draftBodyHtml(html) {
+  const s = String(html || '');
+  const m = s.match(/<!--pt-body-->([\s\S]*?)<!--\/pt-body-->/);
+  if (m) return m[1] === '<br>' ? '' : m[1];
+  const body = s.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  return body ? body[1] : s;
 }

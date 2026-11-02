@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **346 rotas** em **33 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **357 rotas** em **33 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -412,24 +412,35 @@ Arquivos: `server/macro.js`.
 |---|---|---|---|---|
 | GET | `/api/macro` | `requireAuth` |  | `server/macro.js:31` |
 
-## `/api/mail` — 12 rotas
+## `/api/mail` — 23 rotas
 
 Arquivos: `server/mail.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail/status` |  |  | `server/mail.js:33` |
-| GET | `/api/mail/labels` |  |  | `server/mail.js:40` |
-| GET | `/api/mail/threads` |  |  | `server/mail.js:59` |
-| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:73` |
-| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:112` |
-| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:145` |
-| GET | `/api/mail/signature` |  |  | `server/mail.js:203` |
-| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:214` |
-| PUT | `/api/mail/signature` |  |  | `server/mail.js:218` |
-| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:229` |
-| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:236` |
-| POST | `/api/mail/send` |  |  | `server/mail.js:254` |
+| GET | `/api/mail/status` |  |  | `server/mail.js:38` |
+| GET | `/api/mail/labels` |  |  | `server/mail.js:45` |
+| GET | `/api/mail/threads` |  |  | `server/mail.js:64` |
+| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:78` |
+| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:118` |
+| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:151` |
+| GET | `/api/mail/signature` |  |  | `server/mail.js:217` |
+| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:228` |
+| PUT | `/api/mail/signature` |  |  | `server/mail.js:232` |
+| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:243` |
+| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:250` |
+| POST | `/api/mail/send` |  |  | `server/mail.js:325` |
+| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:347` |
+| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:365` |
+| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:382` |
+| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:407` |
+| POST | `/api/mail/labels` |  |  | `server/mail.js:418` |
+| PATCH | `/api/mail/labels/:id` |  |  | `server/mail.js:431` |
+| GET | `/api/mail/rules` |  |  | `server/mail.js:455` |
+| POST | `/api/mail/rules` |  |  | `server/mail.js:470` |
+| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:489` |
+| GET | `/api/mail/contacts` |  |  | `server/mail.js:530` |
+| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:556` |
 
 ## `/api/meeting-inbox` — 4 rotas
 

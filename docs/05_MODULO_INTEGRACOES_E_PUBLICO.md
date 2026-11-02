@@ -496,7 +496,7 @@ Lista gerada exata em `docs/gerado/VARIAVEIS_DE_AMBIENTE.md`. Aqui, agrupadas po
 |---|---|---|---|
 | Anthropic (Claude) | Toda a IA | `@anthropic-ai/sdk`; `server/assistant*.js`, `meetingInbox.js`, `pareceres.js`… | Mensagem em português ("IA não configurada" ou de crédito); resto do app segue |
 | Voyage AI | Embeddings da busca da RENATA | `server/embeddings.js` (`https://api.voyageai.com/v1/embeddings`, `voyage-3`) | Só busca lexical |
-| Google OAuth + Calendar API + Gmail API | Agenda, widget (próxima reunião), "Reservar na agenda", espelho do CRM; Caixa de e-mail (§116zw) | `server/google*.js`, `googleCalendar.js`, `googleMail.js`; escopo `calendar.events` (+ `gmail.modify` só para quem conecta o e-mail; exige Gmail API ligada e consentimento "Interno") | "Reconecte o Google" (`friendlyGoogleError`); widget segue sem agenda |
+| Google OAuth + Calendar API + Gmail API | Agenda, widget (próxima reunião), "Reservar na agenda", espelho do CRM; Caixa de e-mail (§116zw) | `server/google*.js`, `googleCalendar.js`, `googleMail.js`; escopo `calendar.events` (+ `gmail.modify` e `gmail.settings.basic` — regras/filtros, §116zy — só para quem conecta o e-mail; exige Gmail API ligada e consentimento "Interno") | "Reconecte o Google" (`friendlyGoogleError`); widget segue sem agenda |
 | BrasilAPI (primária) e ReceitaWS (reserva) | Consulta de CNPJ | `server/cnpjLookup.js`; cache `cnpj_cache` por 60 dias; 15 s | CNPJ sem preenchimento automático |
 | `ipwho.is` | Cidade e coordenadas do IP dos acessos | `server/accessLog.js` | Acesso sem cidade/mapa (nada é inventado) |
 | Web Push (FCM, Mozilla, Apple, Windows) | Aviso no celular/computador | `server/push.js`, `src/sw.js` | Sem push |
