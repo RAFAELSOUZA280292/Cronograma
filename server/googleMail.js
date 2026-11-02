@@ -18,6 +18,10 @@ export const FOLDERS = {
   TRASH: { label: 'TRASH', name: 'Lixeira' },
 };
 
+// Pasta pedida pela tela: ausente = Caixa de entrada; vazia = pesquisa em todas as pastas. O `|| 'INBOX'` antigo trocava o vazio
+// pela Caixa de entrada e a pesquisa não achava e-mail guardado em pasta (e-mail da Eduarda à DeLaval, 02/11/2026).
+export const folderParam = (raw) => (raw === undefined || raw === null ? 'INBOX' : String(raw));
+
 export function folderQuery(folder, q) {
   const f = FOLDERS[folder];
   const text = String(q || '').trim().slice(0, 300);

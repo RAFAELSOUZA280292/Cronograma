@@ -1,6 +1,6 @@
 // Caixa de e-mail (Fase 1): leitura das partes MIME, endereços, pastas e higienização do HTML recebido. Puro.
 //   node scripts/mail-parse.test.mjs
-import { parseAddressList, walkParts, sanitizeMailHtml, mailStyles, unreadQuery, labelTree, folderQuery, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
+import { parseAddressList, walkParts, sanitizeMailHtml, mailStyles, unreadQuery, labelTree, folderQuery, folderParam, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
 
 let failed = 0;
 const ok = (name, cond, extra) => { if (cond) console.log(`ok   ${name}`); else { failed += 1; console.log(`FAIL ${name}${extra !== undefined ? ` -> ${JSON.stringify(extra)}` : ''}`); } };
@@ -47,6 +47,8 @@ ok('imagem externa presa em data-pt-src e contada', s.remoteImages === 1 && /dat
 ok('imagem cid vira endereço do anexo', s.html.includes('/api/mail/messages/M/attachments/ATT1?inline=1'));
 ok('tabela de layout preservada', /<table cellpadding="0" bgcolor="#fff">/.test(s.html));
 
+ok('pasta ausente = Entrada; vazia = todas', folderParam(undefined) === 'INBOX' && folderParam('') === '' && folderParam('Label_9') === 'Label_9');
+ok('pesquisa sem pasta olha todas as pastas', JSON.stringify(folderQuery(folderParam(''), 'debora.macedo@delaval.com')) === JSON.stringify({ labelIds: undefined, q: 'debora.macedo@delaval.com', includeSpamTrash: false }));
 ok('pasta Entrada', JSON.stringify(folderQuery('INBOX', '')) === JSON.stringify({ labelIds: ['INBOX'], q: undefined, includeSpamTrash: false }));
 ok('pasta Arquivo usa pesquisa', folderQuery('ARCHIVE', '').q.includes('-in:inbox') && !folderQuery('ARCHIVE', '').labelIds);
 ok('pasta Lixeira inclui lixeira', folderQuery('TRASH', 'x').includeSpamTrash === true && folderQuery('TRASH', 'x').q === 'x');

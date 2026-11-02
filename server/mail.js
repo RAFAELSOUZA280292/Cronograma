@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { unreadQuery, labelTree, labelDisplay, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
+import { folderParam, unreadQuery, labelTree, labelDisplay, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
 import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
 import { labelColorFor } from '../shared/mailLabelColors.js';
 import { isCalendarPart, parseIcs } from './calendarInvite.js';
@@ -67,7 +67,7 @@ router.get('/labels', async (req, res) => {
 router.get('/threads', async (req, res) => {
   const gmail = await withGmail(req, res); if (!gmail) return;
   try {
-    const { labelIds, q, includeSpamTrash } = folderQuery(String(req.query.folder || 'INBOX'), req.query.q);
+    const { labelIds, q, includeSpamTrash } = folderQuery(folderParam(req.query.folder), req.query.q);
     const pageToken = typeof req.query.pageToken === 'string' && req.query.pageToken.length < 200 ? req.query.pageToken : undefined;
     const { data } = await gmail.users.threads.list({ userId: 'me', labelIds, q, includeSpamTrash, maxResults: 30, pageToken });
     const list = data.threads || [];
@@ -211,7 +211,7 @@ router.post('/threads/modify', async (req, res) => {
 router.post('/read-all', async (req, res) => {
   const gmail = await withGmail(req, res); if (!gmail) return;
   try {
-    const { labelIds, q, includeSpamTrash } = unreadQuery(String((req.body && req.body.folder) || 'INBOX'), req.body && req.body.q);
+    const { labelIds, q, includeSpamTrash } = unreadQuery(folderParam(req.body && req.body.folder), req.body && req.body.q);
     const ids = [];
     let pageToken;
     do {
