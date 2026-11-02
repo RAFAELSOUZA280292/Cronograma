@@ -130,7 +130,7 @@ export async function listEventsWith(calendar, timeMinISO, timeMaxISO) {
     singleEvents: true,
     orderBy: 'startTime',
     maxResults: 250,
-  });
+  }, { timeout: 15000 });
   return (res.data.items || []).map(mapGoogleEvent).filter((ev) => ev.start && ev.end);
 }
 

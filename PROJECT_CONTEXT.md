@@ -59,6 +59,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **E-mail ligado ao CRM e às Empresas** (§130); **RENATA lê o e-mail** (§125) e **revisa propostas** do CRM (§131).
   - **Papéis de trabalho** e CRM fechado para Operações (§127); **Cofre** (§124); **tela inicial personalizável + favoritos** (§126); **API por chave à prova de IA** (§129); **WhatsApp** desligado (§123).
   - **Boas-vindas obrigatória das novidades** (4 passos sem pular: novidades, conectar e-mail e agenda, assinatura, como trabalhar) e **RENATA treinada no painel** (§132).
+  - **Agenda nunca fica "carregando" para sempre**: prazo em cada leitura (Google, CRM) e na tela, com aviso do que não carregou (§133).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9079,3 +9080,10 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **RENATA:** regra 9g (ensinar o caminho quando perguntam "como faço / onde fica", exceção à regra "faça, não ensine") e o `PANEL_GUIDE` (caminhos reais de E-mail, Assinatura, E-mail × CRM, Agenda, CRM, Cofre, Tela inicial, Meu perfil) no prompt de sistema, na parte em cache. Manual em PDF: **não** — a ajuda é a RENATA.
 - **Risco aceito pelo Rafael:** sem pular, quem não conseguir conectar o Google fica na tela até conectar (a tela orienta a chamar o Rafael).
 - Testes: `scripts/launch-tour.test.mjs` (regra de quem vê, rodada, cartões sem CRM, guia no prompt). Conferido no navegador local: Esc não fecha, "Continuar" travado sem conexão e liberado ao conectar (Google simulado), assinatura, passo 4 e conclusão gravada (`launchTour` some do `/api/auth/me`).
+
+## 133. Agenda nunca fica "carregando" para sempre (2026-11-02, Rafael: "o trem está processando infinitamente aqui. E não está exibindo nada… Vai dar pau assim durante a semana?")
+
+- Causa provável: `GET /api/agenda` esperava o Google (status da conexão e `events.list`) **sem prazo**, e a tela (`Agenda.jsx`) também esperava sem prazo — a barra amarela girava enquanto o pedido não voltasse. A causa exata (Google lento ou conexão travada logo depois de reconectar pela boas-vindas) não foi confirmada: não há erro nos registros e a sessão do Rafael não é acessível daqui.
+- Correção: `withDeadline` (`server/agendaForm.js`) em cada leitura externa da rota — status do Google 10 s, Google Calendar 15 s (e `timeout` de 15 s no próprio `events.list`), atividades do CRM 10 s; as agendas extras já tinham 15 s. A que estourar ou falhar vira `warnings` na resposta e o resto aparece; conexão expirada (`invalid_grant`) pede para reconectar em vez de derrubar a tela.
+- Tela: prazo de 40 s no pedido; estourou → aviso "A agenda demorou demais…" (nova tentativa a cada 60 s, como já era); `warnings` aparecem num aviso amarelo "Parte da agenda não carregou".
+- Testes: `scripts/agenda-invite.test.mjs` (fonte que nunca responde estoura com aviso; rápida passa). Rota conferida no servidor local (200, `warnings: []`).

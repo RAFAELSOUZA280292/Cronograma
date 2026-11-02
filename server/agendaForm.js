@@ -67,3 +67,11 @@ export function proposalComment(startISO, endISO, note) {
   const extra = String(note || '').trim().slice(0, 300);
   return `Proposta de novo horário: ${fmtBrRange(startISO, endISO)} (horário de Brasília).${extra ? ` ${extra}` : ''}`;
 }
+
+// Nenhuma fonte da Agenda pode segurar a tela para sempre (02/11/2026: a agenda do Rafael ficou "processando infinitamente").
+// Cada leitura externa tem prazo; a que estourar vira aviso na tela e o resto aparece normalmente.
+export function withDeadline(p, ms, label) {
+  let timer;
+  const late = new Promise((_, rej) => { timer = setTimeout(() => rej(Object.assign(new Error(`${label} demorou mais de ${Math.round(ms / 1000)} s para responder.`), { deadline: true })), ms); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}

@@ -144,6 +144,7 @@ export default function AgendaScreen({
   const [hidden, setHidden] = useState(loadHidden);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [warnings, setWarnings] = useState([]);
   const [reloadTick, setReloadTick] = useState(0);
   const [newEvent, setNewEvent] = useState(null); // { date, time } enquanto o "Novo compromisso" está aberto
   const [detailId, setDetailId] = useState(null);
@@ -176,8 +177,10 @@ export default function AgendaScreen({
   useEffect(() => {
     let cancelled = false;
     function load() {
-      apiGet(`/api/agenda?start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`)
-        .then((res) => { if (!cancelled) { setConnected(res.connected); setEvents(res.events || []); setAccounts(res.accounts || []); setLoaded(true); setLoadError(''); } })
+      // Prazo também na tela: se o servidor não responder em 40 s, mostra o aviso (a próxima tentativa sai em 60 s) em vez de girar para sempre.
+      const slow = new Promise((_, rej) => setTimeout(() => rej(new Error('A agenda demorou demais para responder. Vou tentar de novo em 1 minuto; se continuar, avise o Rafael.')), 40000));
+      Promise.race([apiGet(`/api/agenda?start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`), slow])
+        .then((res) => { if (!cancelled) { setConnected(res.connected); setEvents(res.events || []); setAccounts(res.accounts || []); setWarnings(res.warnings || []); setLoaded(true); setLoadError(''); } })
         .catch((e) => { if (!cancelled) { setLoadError(e.message); setLoaded(true); } });
     }
     load();
@@ -348,6 +351,7 @@ export default function AgendaScreen({
           </div>
         )}
         {loadError && <div style={{ marginBottom: 14 }}><Callout tone="danger" icon={AlertTriangle} title="Não consegui carregar a agenda">{loadError}</Callout></div>}
+        {!loadError && warnings.length > 0 && <div style={{ marginBottom: 14 }}><Callout tone="warn" icon={AlertTriangle} title="Parte da agenda não carregou">{warnings.join(' ')}</Callout></div>}
         {loaded && !loadError && events.length === 0 && (
           <div style={{ marginBottom: 14 }}>
             <Callout icon={CalendarDays} title="Nenhum compromisso neste período">Use as setas para ver outra semana ou troque a visualização.</Callout>

@@ -132,18 +132,18 @@ Arquivos: `server/agenda.js`.
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
 | GET | `/api/agenda` | `requireAuth` |  | `server/agenda.js:25` |
-| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:140` |
-| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:153` |
-| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:162` |
-| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:171` |
-| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:183` |
-| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:194` |
-| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:224` |
-| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:238` |
-| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:251` |
-| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:255` |
-| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:265` |
-| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:269` |
+| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:147` |
+| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:160` |
+| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:169` |
+| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:178` |
+| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:190` |
+| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:201` |
+| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:231` |
+| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:245` |
+| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:258` |
+| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:262` |
+| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:272` |
+| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:276` |
 
 ## `/api/assistant` — 10 rotas
 

@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-584 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+585 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (51)
+## 2026-11-02 (52)
 
+- `20966b0` 18:44 — Boas-vindas obrigatória das novidades (03/11) e RENATA treinada no painel (§132)
 - `a635d2d` 18:36 — Cérebro legível: Estado atual por área, mapa E-01…E-16 da Caixa de e-mail, linhas de 02/11 em tópicos
 - `ae34b24` 18:29 — Caixa de e-mail: conversas da equipe com a pessoa pesquisada (§116zzzzzzzzzzzzz)
 - `718f15e` 18:24 — Caixa de e-mail: pesquisa olha todas as pastas (folder vazio virava Caixa de entrada) (§116zzzzzzzzzzzz)

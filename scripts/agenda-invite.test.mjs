@@ -2,7 +2,7 @@
 // sugerido"), fusos, formulário de compromisso, proposta de horário e mapeamento do evento do Google. Rodar: node scripts/agenda-invite.test.mjs
 import assert from 'node:assert/strict';
 import { parseIcs, icsDate, unfoldIcs, isCalendarPart, replierOf, meetingLinkOf } from '../server/calendarInvite.js';
-import { parseEventForm, parseRange, proposalComment, fmtBrRange } from '../server/agendaForm.js';
+import { parseEventForm, parseRange, proposalComment, fmtBrRange, withDeadline } from '../server/agendaForm.js';
 import { mapEventDetail, buildPanelEventBody, applySelfRsvp, composePatch } from '../server/googleCalendar.js';
 import { walkParts } from '../server/googleMail.js';
 
@@ -174,5 +174,14 @@ ok('responder com nota e proposta de novo horário', () => {
   assert.match(parseRange({}).error, /novo horário/);
   assert.match(parseRange({ start: '2026-11-04T00:00:00Z', end: '2026-11-05T00:00:00Z' }).error, /12 horas/);
 });
+
+// Prazo das leituras da Agenda (02/11/2026): fonte que não responde vira aviso, não tela girando para sempre.
+{
+  let msg = '';
+  try { await withDeadline(new Promise(() => {}), 50, 'O Google Calendar'); } catch (e) { msg = e.deadline ? e.message : ''; }
+  ok('fonte que não responde estoura o prazo com aviso', () => assert.match(msg, /^O Google Calendar demorou mais de \d+ s para responder\.$/));
+  const fast = await withDeadline(Promise.resolve([1]), 1000, 'x');
+  ok('fonte rápida passa direto', () => assert.deepEqual(fast, [1]));
+}
 
 console.log(`\n${n} verificações da agenda e dos convites passaram.`);

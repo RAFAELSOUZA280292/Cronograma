@@ -10,7 +10,7 @@ import { requireAuth } from './auth.js';
 import { canAccessProject } from './routes.js';
 import { pool } from './db.js';
 import { getConnectionStatus, listEvents, respondToEvent, googleConfigured, getEventDetail, findEventByICalUID, savePanelEvent, respondWithNote, rescheduleEvent, cancelPanelEvent } from './googleCalendar.js';
-import { brInstant, parseEventForm, parseRange, proposalComment } from './agendaForm.js';
+import { brInstant, parseEventForm, parseRange, proposalComment, withDeadline } from './agendaForm.js';
 import { crmAgendaEvents } from './crm/agendaFeed.js';
 import { linkedGoogleEventIds } from './crm/googleSync.js';
 import {
@@ -30,15 +30,22 @@ router.get('/', requireAuth, async (req, res, next) => {
     const endDate = String(end).slice(0, 10);
     if (Number.isNaN(Date.parse(String(start))) || Number.isNaN(Date.parse(String(end)))) return res.status(400).json({ message: 'start e end precisam ser datas válidas (AAAA-MM-DD ou ISO).' });
 
-    const status = await getConnectionStatus(req.user.id);
+    const warnings = [];
+    let status = { connected: false };
+    try { status = await withDeadline(getConnectionStatus(req.user.id), 10000, 'A conexão com o Google'); } catch (e) { console.error('Agenda: status do Google (ignorado):', e.message); warnings.push(e.message); }
     const events = [];
     const principal = await principalPrefs(req.user.id);
 
     if (status.connected && principal.calendarEnabled) {
-      const googleEvents = await listEvents(req.user.id, start, end);
-      // Atividade do CRM espelhada no Google aparece UMA vez: some o evento do Google, fica a atividade (que abre o CRM).
-      const mirrored = await linkedGoogleEventIds(req.user.id);
-      events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))).map((ev) => ({ ...ev, account: 'principal', color: principal.color })));
+      try {
+        const googleEvents = await withDeadline(listEvents(req.user.id, start, end), 15000, 'O Google Calendar');
+        // Atividade do CRM espelhada no Google aparece UMA vez: some o evento do Google, fica a atividade (que abre o CRM).
+        const mirrored = await linkedGoogleEventIds(req.user.id);
+        events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))).map((ev) => ({ ...ev, account: 'principal', color: principal.color })));
+      } catch (e) {
+        console.error('Agenda: falha ao ler o Google Calendar (ignorado):', e.message);
+        warnings.push(/invalid_grant/i.test(String(e.message)) ? 'A conexão com o Google expirou: reconecte em Meu perfil › Agenda.' : e.deadline ? e.message : 'Não consegui ler o seu Google Calendar agora; o resto da agenda está aqui.');
+      }
     }
 
     // Agendas extras da pessoa (§128): outra conta Google, Microsoft, link iCal. Só as dela; uma com problema não derruba a tela.
@@ -98,13 +105,13 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     // CRM (Fase 3): atividades em aberto em que o usuário é o responsável. Isolado —
     // se o CRM falhar, a Agenda continua igual à de antes.
-    try { events.push(...await crmAgendaEvents(req.user, startDate, endDate)); } catch (e) { console.error('Agenda: falha ao ler atividades do CRM (ignorado):', e.message); }
+    try { events.push(...await withDeadline(crmAgendaEvents(req.user, startDate, endDate), 10000, 'As atividades do CRM')); } catch (e) { console.error('Agenda: falha ao ler atividades do CRM (ignorado):', e.message); }
 
     const principalAccount = {
       id: 'principal', provider: 'google', providerLabel: 'Google', label: principal.label || 'Agenda principal (Google)', color: principal.color,
       calendarEnabled: principal.calendarEnabled, connected: status.connected, privacy: 'pricetax', readOnly: false, status: 'ok', error: '',
     };
-    res.json({ connected: status.connected, events, accounts: [principalAccount, ...extra.accounts] });
+    res.json({ connected: status.connected, events, accounts: [principalAccount, ...extra.accounts], warnings });
   } catch (e) { next(e); }
 });
 
