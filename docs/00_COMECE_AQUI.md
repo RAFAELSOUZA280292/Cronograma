@@ -9,7 +9,7 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 
 **Confirmado pelo Rafael em 02/11:** mover coluna entre páginas do Meu quadro funciona no uso real dele.
 
-**Em andamento — Caixa de e-mail (§116zw–§116zx):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) no ar e confirmada pelo Rafael. **Fase 2 publicada em 02/11 (~01h20):** Escrever, Responder, Responder a todos, Encaminhar (com os anexos originais), anexos até 20 MB e assinatura por pessoa com logo embutido (E-mail › Assinatura), e-mail montado para Outlook/celular (`server/mailCompose.js`). Fase 3 (CRM, aviso de e-mail novo, atalhos, rascunhos) vem em conversa própria.
+**Em andamento — Caixa de e-mail (§116zw–§116zx):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) no ar e confirmada pelo Rafael. **Fase 2 publicada em 02/11 (01h08, `6f3f74c`):** Escrever, Responder, Responder a todos, Encaminhar (com os anexos originais), anexos até 20 MB e assinatura por pessoa com logo embutido (E-mail › Assinatura), e-mail montado para Outlook/celular (`server/mailCompose.js`). Fase 3 (CRM, aviso de e-mail novo, atalhos, rascunhos) vem em conversa própria.
 
 **Pendências do Rafael** (nenhuma depende de código):
 - **Caixa de e-mail:** conferir a assinatura em E-mail › Assinatura e mandar um e-mail de teste para um endereço **Outlook** e para o **celular** (logo, acentos no assunto, citação, anexo); as outras pessoas conectam o próprio Gmail em `/email`.
