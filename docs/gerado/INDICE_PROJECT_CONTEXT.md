@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8793 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8804 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -174,6 +174,7 @@ O `PROJECT_CONTEXT.md` tem 8793 linhas (a memória cronológica de cada decisão
 | 8735 | 116zq. U2 (parte 3): as janelas que sobraram na janela única (2026-11-01, pedido do Rafael: "Faz o U2 das jan… | - Migrou para Modal/Drawer de src/ui/dialog.jsx: App.jsx — Cadastrar/Clonar empresa, Nova atividade do grupo e o painel de Notificações (agora Drawer… |
 | 8746 | 116zr. Faxina do U2 e contraste nos dois temas (2026-11-01, trabalho da noite autorizado pelo Rafael) | - Verificado no navegador real (banco cronogramae2e), o que ficou "não testado" no §116zq: Compartilhar reunião (Esc fecha só ela, a reunião continua… |
 | 8754 | 116zs. Vidro nas barras e botões (2026-11-01, pedido do Rafael) | - Pedido: "instala o expo-glass-effect e põe o vidro só nas barras e botões". Não instalado de propósito: o pacote é nativo de React Native/Expo (Liq… |
-| 8764 | 116zt. Mover coluna do Meu quadro para outra página (2026-11-01, pedido do Rafael) | - Pedido: a coluna "PESSOAL" (com LIVRO RONALDO, LIVO AUTOBIOGRAFICO e Cirurgia) estava dentro da página "PRICETAX"; ele queria levá-la para a aba "P… |
-| 8772 | 116zu. Convite do Google com link do Meet nas reuniões do CRM (2026-11-01, pedido do sócio do Rafael; opção "… | - Pergunta do sócio: "dá para marcar reunião direto do CRM?" (sim: atividade do tipo Reunião com data e horário vira evento de 30 min na agenda Googl… |
-| 8785 | 116zv. Cérebro em dia e alarme de frescor (2026-11-02, pedido do Rafael: "documente… e economizar tokens") | - Achado: o "cérebro" existe (consolidado em 2026-10-05, completo em 2026-10-29: docs/00…11 + docs/gerado/ + este arquivo), mas só o registro detalha… |
+| 8765 | 116zt. Mover coluna do Meu quadro para outra página (2026-11-01, pedido do Rafael) | - Pedido: a coluna "PESSOAL" (com LIVRO RONALDO, LIVO AUTOBIOGRAFICO e Cirurgia) estava dentro da página "PRICETAX"; ele queria levá-la para a aba "P… |
+| 8773 | 116zu. Convite do Google com link do Meet nas reuniões do CRM (2026-11-01, pedido do sócio do Rafael; opção "… | - Pergunta do sócio: "dá para marcar reunião direto do CRM?" (sim: atividade do tipo Reunião com data e horário vira evento de 30 min na agenda Googl… |
+| 8786 | 116zv. Cérebro em dia e alarme de frescor (2026-11-02, pedido do Rafael: "documente… e economizar tokens") | - Achado: o "cérebro" existe (consolidado em 2026-10-05, completo em 2026-10-29: docs/00…11 + docs/gerado/ + este arquivo), mas só o registro detalha… |
+| 8795 | 116zw. Caixa de e-mail, Fase 1: ler e organizar o Gmail no painel (2026-11-02, pedido do Rafael: "uma caixa d… | - Desenho: o painel é um cliente do Gmail de cada pessoa (como o Outlook), pela API oficial; nada é copiado para o nosso banco e não há tabela nova. … |

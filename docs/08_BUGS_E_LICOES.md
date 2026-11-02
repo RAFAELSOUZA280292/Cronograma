@@ -646,3 +646,4 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 - Causa exata do "não grava" da Eduarda (§119) no computador dela não foi confirmada; o que foi reproduzido e corrigido é lentidão + falta de retorno visual. Safari/Firefox não foram testados.
 - Não verifiquei se a `RAILWAY_API_TOKEN` atual funciona (não executei o script).
 - O estado atual de produção (se o estudo do parecer longo passou a funcionar depois do §116g; se `reuniao_ver` resolve a pergunta da KUHN) não foi visto: só o Rafael confirma.
+| Retorno do Google para um módulo perde o `#…` do aviso | a abertura direta por endereço (`App.jsx`, `initialPathDone`) faz `replaceState` para `pathForMode(mode)` e apaga o hash antes de a tela montar | §116zw | preservar o hash só para o módulo que o lê (`mode === 'mail'`) |

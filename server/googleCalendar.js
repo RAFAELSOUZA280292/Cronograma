@@ -9,6 +9,8 @@ import { pool } from './db.js';
 import { seal, open } from './secretBox.js';
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
+// Caixa de e-mail (2026-11-02): o mesmo login do Google, com o Gmail acrescentado só quando a pessoa conecta pela tela de E-mail.
+export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 function oauthClient() {
   return new google.auth.OAuth2(
@@ -22,7 +24,7 @@ export function googleConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
 }
 
-export function getAuthUrl(state) {
+export function getAuthUrl(state, { mail = false } = {}) {
   return oauthClient().generateAuthUrl({
     ...(state ? { state } : {}),
     access_type: 'offline',
@@ -30,7 +32,9 @@ export function getAuthUrl(state) {
     // que o Google devolva um refresh_token de novo (ele só manda na
     // primeira autorização, a menos que isso seja forçado).
     prompt: 'consent',
-    scope: SCOPES,
+    // Mantém o que já foi concedido antes: reconectar a agenda não derruba o e-mail, e vice-versa.
+    include_granted_scopes: true,
+    scope: mail ? [...SCOPES, GMAIL_SCOPE] : SCOPES,
   });
 }
 
@@ -67,7 +71,7 @@ export async function getConnectionStatus(userId) {
   return rows[0] ? { connected: true, connectedAt: rows[0].connected_at } : { connected: false, connectedAt: null };
 }
 
-async function getAuthedClientForUser(userId) {
+export async function getAuthedClientForUser(userId) {
   const { rows } = await pool.query('SELECT * FROM google_calendar_connections WHERE user_id=$1', [userId]);
   if (!rows[0]) return null;
   const conn = rows[0];

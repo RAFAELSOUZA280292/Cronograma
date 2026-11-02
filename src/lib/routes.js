@@ -7,6 +7,7 @@ export const MODE_PATHS = {
   company: '/empresas',
   xflow: '/xflow',
   agenda: '/agenda',
+  mail: '/email',
   macro: '/visao-geral',
   knowledge: '/conhecimento',
   pareceres: '/pareceres',
@@ -22,6 +23,7 @@ const ALIASES = {
   '/visaogeral': 'macro', '/visao-geral-empresas': 'macro',
   '/usuario': 'users', '/gestao-usuarios': 'users', '/gestao-de-usuarios': 'users',
   '/inteligencia-operacional': 'ops', '/central': 'ops',
+  '/e-mail': 'mail', '/caixa-de-entrada': 'mail', '/emails': 'mail',
 };
 
 const norm = (p) => String(p || '/').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\/+$/, '') || '/';
@@ -56,6 +58,7 @@ export function canOpenMode(mode, user) {
     case 'personal': return !!user.personalAccess;
     case 'xflow': return !!user.xflowRole;
     case 'agenda': return true;
+    case 'mail': return isStaff;
     case 'macro': return !!user.companiesAccess && !!user.allCompaniesAccess;
     case 'knowledge': return isStaff;
     case 'pareceres': return isStaff;

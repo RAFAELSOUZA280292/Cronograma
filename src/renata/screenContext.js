@@ -6,6 +6,6 @@ export function setScreenContext(patch) { Object.assign(state, patch); }
 export function getScreenContext() { return { module: state.module, view: state.view, entity: state.entity ? { ...state.entity } : null }; }
 
 export const MODULE_LABELS = {
-  inicio: 'Início', company: 'Empresas', personal: 'Gestão de Atividades', xflow: 'XFlow', agenda: 'Agenda', macro: 'Visão Geral', knowledge: 'Conhecimento',
+  inicio: 'Início', company: 'Empresas', personal: 'Gestão de Atividades', xflow: 'XFlow', agenda: 'Agenda', mail: 'E-mail', macro: 'Visão Geral', knowledge: 'Conhecimento',
   crm: 'CRM', pareceres: 'Pareceres', modelos: 'Modelos', users: 'Usuários', ops: 'Inteligência',
 };

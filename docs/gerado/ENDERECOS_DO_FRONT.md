@@ -10,6 +10,7 @@ O app **não tem roteador de páginas**: a navegação interna é por estado (`m
 | `company` | `/empresas` |
 | `xflow` | `/xflow` |
 | `agenda` | `/agenda` |
+| `mail` | `/email` |
 | `macro` | `/visao-geral` |
 | `knowledge` | `/conhecimento` |
 | `pareceres` | `/pareceres` |

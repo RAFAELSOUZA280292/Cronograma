@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 167 arquivos
+## `server/` — 169 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -90,9 +90,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/evals/taskLinkEval.js` | 150 | Avaliação de qualidade da sugestão tarefa → atividade (Fase 5 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
-| `server/google.js` | 59 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleCalendar.js` | 323 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/index.js` | 177 |  |
+| `server/google.js` | 70 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
+| `server/googleCalendar.js` | 327 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
+| `server/googleMail.js` | 229 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
+| `server/index.js` | 179 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -106,6 +107,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
 | `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
+| `server/mail.js` | 154 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
 | `server/materialText.js` | 152 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
 | `server/meetingEdit.js` | 172 | Correção de uma reunião já registrada pela API de conectividade (§116e, escopo `meetings_edit`). Função pura sobre o `data` do projeto: |
 | `server/meetingEditsSchema.js` | 20 | Histórico das correções de reunião feitas pela API (§116e). O versionamento do cronograma (`project_versions`, §83) só enxerga atividades, fases e equipe — não reuniões —, |
@@ -192,11 +194,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 200 arquivos
+## `src/` — 202 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3662 |  |
+| `src/App.jsx` | 3675 |  |
 | `src/agenda/Agenda.jsx` | 583 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/NewEventModal.jsx` | 225 | "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events); |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
@@ -288,7 +290,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/lib/pushPayload.js` | 32 | Funções puras do aviso push (2026-10-17), usadas pelo service worker (src/sw.js) e testáveis em Node. |
 | `src/lib/recents.js` | 84 | Recentes, favoritos e "onde eu parei" (Onda 5, §81). Tudo por PESSOA, no localStorage do navegador (chave com o id do |
 | `src/lib/richNote.js` | 46 | Descrição formatada do cartão (2026-10-07): a string é texto simples (cartões antigos) ou HTML curto do editor — quem diz |
-| `src/lib/routes.js` | 69 | Endereços de cada módulo (2026-10-05, pedido do Rafael: "não consigo favoritar direto minha Gestão de |
+| `src/lib/routes.js` | 72 | Endereços de cada módulo (2026-10-05, pedido do Rafael: "não consigo favoritar direto minha Gestão de |
 | `src/lib/saveRetry.js` | 18 | Retentativa automática de gravação (2026-10-27, §118): quando o salvamento falha por causa de rede ou do servidor, a edição fica na |
 | `src/lib/saveState.js` | 71 | Estado global de gravação (Onda 4, §81): "Salvando… / Salvo / Não foi possível salvar — tentar de novo" em UM lugar só. |
 | `src/lib/screenSearch.js` | 60 | Busca da tela aberta da empresa (2026-10-19, pedido do Rafael): um campo no cabeçalho que filtra SÓ a aba que está aberta (Resumo, Reuniões, Tarefas, Gantt, Tabela, Fases, Quadro, Mapa). |
@@ -305,6 +307,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/macro/StandardPlan.jsx` | 115 | Aba "Padrão" da Visão Geral (2026-10-15): aplica nas empresas que já existem o padrão de cronograma aprimorado (descrições melhores, subatividades e as |
 | `src/macro/StandardPlanBar.jsx` | 226 | Faixa do cronograma padrão (2026-10-19), no alto da tela de empresa quando o que está aberto é o padrão: versão atual, estado do rascunho, kickoff de referência, |
 | `src/macro/macro.css` | 172 | Visão Geral no celular (Onda 6, §81). Desktop idêntico ao de antes; o que muda está sob @media (max-width: 767px): |
+| `src/mail/MailScreen.jsx` | 456 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
+| `src/mail/mail.css` | 89 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
 | `src/main.jsx` | 24 |  |
 | `src/meetings/ActivityLink.jsx` | 300 | Vínculo tarefa de reunião → atividade do cronograma (Fase 1 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |
 | `src/meetings/ActivityRow.jsx` | 186 | Linha de atividade (item de TO_DO) — extraído de TodoBoard.jsx pra ser |
