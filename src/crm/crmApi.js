@@ -83,6 +83,7 @@ export const crm = {
   updateProduct: (id, body) => apiPatch(`${B}/products/${id}`, body),
   deleteProduct: (id) => apiDelete(`${B}/products/${id}`),
   addNote: (body) => apiPost(`${B}/notes`, body),
+  reviewAttachment: (dealId, anexoId) => apiPost(`${B}/deals/${dealId}/attachments/review`, { anexoId }),
   updateNote: (id, body) => apiPatch(`${B}/notes/${id}`, body),
   deleteNote: (id) => apiDelete(`${B}/notes/${id}`),
   importFields: () => apiGet(`${B}/import/fields`),

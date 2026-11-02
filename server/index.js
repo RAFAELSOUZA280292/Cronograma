@@ -39,6 +39,7 @@ import { router as client360Router } from './client360.js';
 import { router as connectRouter } from './connect.js';
 import { router as companyCalendarRouter } from './companyCalendar.js';
 import { router as projectVaultRouter, ensureProjectVaultSchema } from './projectVault.js';
+import { ensureAttachmentReaderSchema } from './crm/attachmentReader.js';
 import { router as companyShareRouter, publicRouter as publicCompanyRouter, dataRouter as companyDataRouter } from './companyShare.js';
 import { router as pushRouter, pushEnabled } from './push.js';
 import { router as opsIntelRouter } from './opsIntel.js';
@@ -162,6 +163,7 @@ async function start() {
   await migrateAccessModel();
   await migrateXflowBoardOrder();
   try { await ensureProjectVaultSchema(pool); } catch (e) { console.error('ERRO: cofre do projeto NÃO foi instalado:', e.message); }
+  try { await ensureAttachmentReaderSchema(pool); } catch (e) { console.error('ERRO: leitura de anexos do CRM NÃO foi instalada:', e.message); }
   try { const n = await wipeRecoverableWidgetTokens(); if (n) console.log(`Widget: ${n} token(s) deixaram de ser recuperáveis (só o hash fica no banco)`); } catch (e) { console.error('Falha ao apagar tokens recuperáveis do widget', e.message); }
   try { const n = await sealLegacyGoogleTokens(); if (n) console.log(`Google Calendar: ${n} conexão(ões) tiveram os tokens cifrados`); } catch (e) { console.error('Falha ao cifrar tokens antigos do Google (seguem legíveis)', e.message); }
   await migrateInsightsToKnowledgeFacts();

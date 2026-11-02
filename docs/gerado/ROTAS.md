@@ -2,54 +2,54 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **408 rotas** em **38 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **409 rotas** em **38 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 85 |
-| `/api/xflow` | `server/xflow.js` | 86 |
-| `/api/google` | `server/google.js` | 87 |
-| `/api/microsoft` | `server/microsoft.js` | 88 |
-| `/api/agenda` | `server/agenda.js` | 89 |
-| `/api/mail` | `server/mail.js` | 90 |
-| `/api/mail-links` | `server/mailLinks.js` | 91 |
-| `/api/whatsapp` | `server/whatsapp.js` | 92 |
+| `/api` | `server/routes.js` | 86 |
+| `/api/xflow` | `server/xflow.js` | 87 |
+| `/api/google` | `server/google.js` | 88 |
+| `/api/microsoft` | `server/microsoft.js` | 89 |
+| `/api/agenda` | `server/agenda.js` | 90 |
+| `/api/mail` | `server/mail.js` | 91 |
+| `/api/mail-links` | `server/mailLinks.js` | 92 |
 | `/api/whatsapp` | `server/whatsapp.js` | 93 |
-| `/api/macro` | `server/macro.js` | 94 |
-| `/api/inventory` | `server/inventory.js` | 95 |
-| `/api/inventory` | `server/inventoryEdit.js` | 96 |
-| `/api/gaps` | `server/gaps.js` | 97 |
-| `/api/task-links` | `server/taskLinks.js` | 98 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 99 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 100 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 101 |
-| `/api/assistant` | `server/assistant.js` | 102 |
-| `/api/knowledge` | `server/knowledge.js` | 103 |
-| `/api/pareceres` | `server/pareceres.js` | 104 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 105 |
-| `/api/crm` | `server/crm/routes.js` | 106 |
-| `/api/renata` | `server/renata/routes.js` | 107 |
-| `/api/widget` | `server/widget.js` | 108 |
-| `/api/daily` | `server/daily.js` | 109 |
-| `/api/home-prefs` | `server/homePrefs.js` | 110 |
-| `/api/templates` | `server/documentTemplates.js` | 111 |
-| `/api/library-search` | `server/librarySearch.js` | 112 |
-| `/api/briefing` | `server/briefing.js` | 113 |
-| `/api/client360` | `server/client360.js` | 114 |
-| `/api/connect` | `server/connect.js` | 115 |
-| `/api/company-share` | `server/companyShare.js` | 116 |
-| `/api/project-vault` | `server/projectVault.js` | 117 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 118 |
-| `/api/public-company` | `server/companyShare.js` | 119 |
-| `/d` | `server/companyShare.js` | 120 |
-| `/d` | `server/errorHandler.js` | 121 |
-| `/api/push` | `server/push.js` | 122 |
-| `/api/ops-intel` | `server/opsIntel.js` | 123 |
-| `/api/experience` | `server/experience.js` | 124 |
-| `/api/project-history` | `server/projectVersions.js` | 125 |
-| `/api` | `server/errorHandler.js` | 133 |
+| `/api/whatsapp` | `server/whatsapp.js` | 94 |
+| `/api/macro` | `server/macro.js` | 95 |
+| `/api/inventory` | `server/inventory.js` | 96 |
+| `/api/inventory` | `server/inventoryEdit.js` | 97 |
+| `/api/gaps` | `server/gaps.js` | 98 |
+| `/api/task-links` | `server/taskLinks.js` | 99 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 100 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 101 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 102 |
+| `/api/assistant` | `server/assistant.js` | 103 |
+| `/api/knowledge` | `server/knowledge.js` | 104 |
+| `/api/pareceres` | `server/pareceres.js` | 105 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 106 |
+| `/api/crm` | `server/crm/routes.js` | 107 |
+| `/api/renata` | `server/renata/routes.js` | 108 |
+| `/api/widget` | `server/widget.js` | 109 |
+| `/api/daily` | `server/daily.js` | 110 |
+| `/api/home-prefs` | `server/homePrefs.js` | 111 |
+| `/api/templates` | `server/documentTemplates.js` | 112 |
+| `/api/library-search` | `server/librarySearch.js` | 113 |
+| `/api/briefing` | `server/briefing.js` | 114 |
+| `/api/client360` | `server/client360.js` | 115 |
+| `/api/connect` | `server/connect.js` | 116 |
+| `/api/company-share` | `server/companyShare.js` | 117 |
+| `/api/project-vault` | `server/projectVault.js` | 118 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 119 |
+| `/api/public-company` | `server/companyShare.js` | 120 |
+| `/d` | `server/companyShare.js` | 121 |
+| `/d` | `server/errorHandler.js` | 122 |
+| `/api/push` | `server/push.js` | 123 |
+| `/api/ops-intel` | `server/opsIntel.js` | 124 |
+| `/api/experience` | `server/experience.js` | 125 |
+| `/api/project-history` | `server/projectVersions.js` | 126 |
+| `/api` | `server/errorHandler.js` | 134 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -120,7 +120,7 @@ Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:150` |
+| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:151` |
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
@@ -229,7 +229,7 @@ Arquivos: `server/connect.js`. Proteção do grupo (`router.use` global): `serve
 | GET | `/api/connect/agenda` |  |  | `server/connect.js:743` |
 | POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:942` |
 
-## `/api/crm` — 87 rotas
+## `/api/crm` — 88 rotas
 
 Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do grupo (`router.use` global): `server/crm/routes.js`: `need('read')`.
 
@@ -246,82 +246,83 @@ Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do 
 | POST | `/api/crm/migration/piperun/purge` | `need('admin')` |  | `server/crm/piperun/routes.js:71` |
 | GET | `/api/crm/deals/:id/files` | `need('export')` | Arquivos do negócio (documentos importados do PipeRun) | `server/crm/piperun/routes.js:77` |
 | GET | `/api/crm/deal-files/:fileId/download` | `need('export')` |  | `server/crm/piperun/routes.js:82` |
-| GET | `/api/crm/me` |  |  | `server/crm/routes.js:69` |
-| GET | `/api/crm/options` |  |  | `server/crm/routes.js:70` |
-| GET | `/api/crm/overview` |  |  | `server/crm/routes.js:71` |
-| GET | `/api/crm/views` |  | Visões salvas (filtros de Negócios) e página inicial por pessoa (§98). Pessoal: qualquer um que lê; compartilhada: quem tem 'funnel'. | `server/crm/routes.js:80` |
-| POST | `/api/crm/views` |  |  | `server/crm/routes.js:81` |
-| PUT | `/api/crm/views-default` |  |  | `server/crm/routes.js:82` |
-| PATCH | `/api/crm/views/:id` |  |  | `server/crm/routes.js:83` |
-| DELETE | `/api/crm/views/:id` |  |  | `server/crm/routes.js:84` |
-| GET | `/api/crm/search` |  |  | `server/crm/routes.js:85` |
-| GET | `/api/crm/cnpj/:cnpj` | `need('write')` | Cadastro rápido: digita o CNPJ, o resto vem da Receita (com cache) — e já diz se é duplicado. | `server/crm/routes.js:88` |
-| GET | `/api/crm/companies` |  | ---- empresas | `server/crm/routes.js:98` |
-| POST | `/api/crm/companies/check-duplicates` | `need('write')` |  | `server/crm/routes.js:102` |
-| POST | `/api/crm/companies` | `need('write')` |  | `server/crm/routes.js:106` |
-| GET | `/api/crm/companies/:id` |  |  | `server/crm/routes.js:110` |
-| PATCH | `/api/crm/companies/:id` | `need('write')` |  | `server/crm/routes.js:116` |
-| DELETE | `/api/crm/companies/:id` | `need('remove')` |  | `server/crm/routes.js:120` |
-| POST | `/api/crm/companies/:id/restore` | `need('admin')` |  | `server/crm/routes.js:121` |
-| POST | `/api/crm/companies/:id/merge` | `need('remove')` |  | `server/crm/routes.js:122` |
-| GET | `/api/crm/companies/:id/timeline` |  |  | `server/crm/routes.js:123` |
-| GET | `/api/crm/companies/:id/audit` | `need('remove')` |  | `server/crm/routes.js:124` |
-| POST | `/api/crm/companies/:id/projects` | `need('write')` |  | `server/crm/routes.js:125` |
-| DELETE | `/api/crm/companies/:id/projects/:projectId` | `need('write')` |  | `server/crm/routes.js:126` |
-| GET | `/api/crm/companies/by-project/:projectId` |  | Projetos do cronograma que ainda não estão ligados a nenhuma empresa do CRM (pra ligar na mão). Empresa do CRM a partir do projeto do cronograma (Onda 5): alimenta "Abri… | `server/crm/routes.js:130` |
-| GET | `/api/crm/projects-available` | `need('write')` |  | `server/crm/routes.js:137` |
-| GET | `/api/crm/contacts` |  | ---- contatos | `server/crm/routes.js:145` |
-| GET | `/api/crm/contacts/:id` |  |  | `server/crm/routes.js:146` |
-| POST | `/api/crm/contacts/check-duplicates` | `need('write')` |  | `server/crm/routes.js:147` |
-| POST | `/api/crm/contacts` | `need('write')` |  | `server/crm/routes.js:151` |
-| PATCH | `/api/crm/contacts/:id` | `need('write')` |  | `server/crm/routes.js:155` |
-| DELETE | `/api/crm/contacts/:id` | `need('remove')` |  | `server/crm/routes.js:159` |
-| GET | `/api/crm/pipeline` |  | ---- negócios / pipeline (Fase 2) | `server/crm/routes.js:162` |
-| GET | `/api/crm/pipelines` |  | ---- funis e etapas (Fase 2b): todos leem; gestor+ configura | `server/crm/routes.js:165` |
-| POST | `/api/crm/pipelines` | `need('funnel')` |  | `server/crm/routes.js:166` |
-| PATCH | `/api/crm/pipelines/:id` | `need('funnel')` |  | `server/crm/routes.js:167` |
-| DELETE | `/api/crm/pipelines/:id` | `need('funnel')` |  | `server/crm/routes.js:168` |
-| POST | `/api/crm/pipelines/:id/stages` | `need('funnel')` |  | `server/crm/routes.js:169` |
-| GET | `/api/crm/board` |  |  | `server/crm/routes.js:170` |
-| GET | `/api/crm/deals` |  |  | `server/crm/routes.js:171` |
-| POST | `/api/crm/deals` | `need('write')` |  | `server/crm/routes.js:172` |
-| GET | `/api/crm/deals/export.xlsx` | `need('export')` | Excel dos negócios com os mesmos filtros da tela (§116c). Vem antes de /deals/:id para "export.xlsx" não virar um id. | `server/crm/routes.js:177` |
-| GET | `/api/crm/deals/:id` |  |  | `server/crm/routes.js:186` |
-| PATCH | `/api/crm/deals/:id` | `need('write')` |  | `server/crm/routes.js:187` |
-| POST | `/api/crm/leads` | `need('write')` |  | `server/crm/routes.js:188` |
-| GET | `/api/crm/notes/:noteId/attachments/:attId` | `need('read')` | Conteúdo de um anexo de nota (imagem/PDF), sob demanda: a lista de notas vem só com nome/tipo/tamanho e esta `url`. | `server/crm/routes.js:190` |
-| GET | `/api/crm/cadences` |  |  | `server/crm/routes.js:201` |
-| POST | `/api/crm/cadences` | `need('funnel')` |  | `server/crm/routes.js:202` |
-| PATCH | `/api/crm/cadences/:id` | `need('funnel')` |  | `server/crm/routes.js:203` |
-| DELETE | `/api/crm/cadences/:id` | `need('funnel')` |  | `server/crm/routes.js:204` |
-| GET | `/api/crm/tags` |  |  | `server/crm/routes.js:205` |
-| PUT | `/api/crm/deals/:id/tags` | `need('write')` |  | `server/crm/routes.js:206` |
-| POST | `/api/crm/deals/:id/move` | `need('write')` |  | `server/crm/routes.js:207` |
-| DELETE | `/api/crm/deals/:id` | `need('remove')` |  | `server/crm/routes.js:211` |
-| GET | `/api/crm/deals/:id/audit` | `need('remove')` |  | `server/crm/routes.js:212` |
-| GET | `/api/crm/activities` |  | ---- atividades / follow-ups (Fase 3). ownerId=me vira o usuário logado. | `server/crm/routes.js:215` |
-| GET | `/api/crm/activities/:id` |  |  | `server/crm/routes.js:216` |
-| POST | `/api/crm/activities` | `need('write')` |  | `server/crm/routes.js:222` |
-| PATCH | `/api/crm/activities/:id` | `need('write')` `ownActivity` |  | `server/crm/routes.js:226` |
-| POST | `/api/crm/activities/:id/complete` | `need('write')` `ownActivity` |  | `server/crm/routes.js:231` |
-| POST | `/api/crm/activities/:id/cancel` | `need('write')` `ownActivity` |  | `server/crm/routes.js:235` |
-| POST | `/api/crm/activities/:id/reopen` | `need('write')` `ownActivity` |  | `server/crm/routes.js:236` |
-| DELETE | `/api/crm/activities/:id` | `need('remove')` |  | `server/crm/routes.js:237` |
-| GET | `/api/crm/products` |  | ---- produtos (catálogo): todos leem; quem define o que se vende é gestor+ | `server/crm/routes.js:240` |
-| POST | `/api/crm/products` | `need('catalog')` |  | `server/crm/routes.js:241` |
-| PATCH | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:242` |
-| DELETE | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:243` |
-| POST | `/api/crm/notes` | `need('write')` | ---- notas | `server/crm/routes.js:246` |
-| PATCH | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:247` |
-| DELETE | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:248` |
-| GET | `/api/crm/import/fields` | `need('import')` | ---- importação (planilha) e clientes atuais do painel | `server/crm/routes.js:251` |
-| POST | `/api/crm/import/preview` | `need('import')` |  | `server/crm/routes.js:252` |
-| POST | `/api/crm/import/commit` | `need('import')` |  | `server/crm/routes.js:256` |
-| GET | `/api/crm/import/deals/fields` | `need('import')` |  | `server/crm/routes.js:260` |
-| POST | `/api/crm/import/deals/preview` | `need('import')` |  | `server/crm/routes.js:261` |
-| POST | `/api/crm/import/deals/commit` | `need('import')` |  | `server/crm/routes.js:262` |
-| GET | `/api/crm/bootstrap/preview` | `need('import')` |  | `server/crm/routes.js:266` |
-| POST | `/api/crm/bootstrap/commit` | `need('import')` |  | `server/crm/routes.js:267` |
+| GET | `/api/crm/me` |  |  | `server/crm/routes.js:72` |
+| GET | `/api/crm/options` |  |  | `server/crm/routes.js:73` |
+| GET | `/api/crm/overview` |  |  | `server/crm/routes.js:74` |
+| GET | `/api/crm/views` |  | Visões salvas (filtros de Negócios) e página inicial por pessoa (§98). Pessoal: qualquer um que lê; compartilhada: quem tem 'funnel'. | `server/crm/routes.js:83` |
+| POST | `/api/crm/views` |  |  | `server/crm/routes.js:84` |
+| PUT | `/api/crm/views-default` |  |  | `server/crm/routes.js:85` |
+| PATCH | `/api/crm/views/:id` |  |  | `server/crm/routes.js:86` |
+| DELETE | `/api/crm/views/:id` |  |  | `server/crm/routes.js:87` |
+| GET | `/api/crm/search` |  |  | `server/crm/routes.js:88` |
+| GET | `/api/crm/cnpj/:cnpj` | `need('write')` | Cadastro rápido: digita o CNPJ, o resto vem da Receita (com cache) — e já diz se é duplicado. | `server/crm/routes.js:91` |
+| GET | `/api/crm/companies` |  | ---- empresas | `server/crm/routes.js:101` |
+| POST | `/api/crm/companies/check-duplicates` | `need('write')` |  | `server/crm/routes.js:105` |
+| POST | `/api/crm/companies` | `need('write')` |  | `server/crm/routes.js:109` |
+| GET | `/api/crm/companies/:id` |  |  | `server/crm/routes.js:113` |
+| PATCH | `/api/crm/companies/:id` | `need('write')` |  | `server/crm/routes.js:119` |
+| DELETE | `/api/crm/companies/:id` | `need('remove')` |  | `server/crm/routes.js:123` |
+| POST | `/api/crm/companies/:id/restore` | `need('admin')` |  | `server/crm/routes.js:124` |
+| POST | `/api/crm/companies/:id/merge` | `need('remove')` |  | `server/crm/routes.js:125` |
+| GET | `/api/crm/companies/:id/timeline` |  |  | `server/crm/routes.js:126` |
+| GET | `/api/crm/companies/:id/audit` | `need('remove')` |  | `server/crm/routes.js:127` |
+| POST | `/api/crm/companies/:id/projects` | `need('write')` |  | `server/crm/routes.js:128` |
+| DELETE | `/api/crm/companies/:id/projects/:projectId` | `need('write')` |  | `server/crm/routes.js:129` |
+| GET | `/api/crm/companies/by-project/:projectId` |  | Projetos do cronograma que ainda não estão ligados a nenhuma empresa do CRM (pra ligar na mão). Empresa do CRM a partir do projeto do cronograma (Onda 5): alimenta "Abri… | `server/crm/routes.js:133` |
+| GET | `/api/crm/projects-available` | `need('write')` |  | `server/crm/routes.js:140` |
+| GET | `/api/crm/contacts` |  | ---- contatos | `server/crm/routes.js:148` |
+| GET | `/api/crm/contacts/:id` |  |  | `server/crm/routes.js:149` |
+| POST | `/api/crm/contacts/check-duplicates` | `need('write')` |  | `server/crm/routes.js:150` |
+| POST | `/api/crm/contacts` | `need('write')` |  | `server/crm/routes.js:154` |
+| PATCH | `/api/crm/contacts/:id` | `need('write')` |  | `server/crm/routes.js:158` |
+| DELETE | `/api/crm/contacts/:id` | `need('remove')` |  | `server/crm/routes.js:162` |
+| GET | `/api/crm/pipeline` |  | ---- negócios / pipeline (Fase 2) | `server/crm/routes.js:165` |
+| GET | `/api/crm/pipelines` |  | ---- funis e etapas (Fase 2b): todos leem; gestor+ configura | `server/crm/routes.js:168` |
+| POST | `/api/crm/pipelines` | `need('funnel')` |  | `server/crm/routes.js:169` |
+| PATCH | `/api/crm/pipelines/:id` | `need('funnel')` |  | `server/crm/routes.js:170` |
+| DELETE | `/api/crm/pipelines/:id` | `need('funnel')` |  | `server/crm/routes.js:171` |
+| POST | `/api/crm/pipelines/:id/stages` | `need('funnel')` |  | `server/crm/routes.js:172` |
+| GET | `/api/crm/board` |  |  | `server/crm/routes.js:173` |
+| GET | `/api/crm/deals` |  |  | `server/crm/routes.js:174` |
+| POST | `/api/crm/deals` | `need('write')` |  | `server/crm/routes.js:175` |
+| GET | `/api/crm/deals/export.xlsx` | `need('export')` | Excel dos negócios com os mesmos filtros da tela (§116c). Vem antes de /deals/:id para "export.xlsx" não virar um id. | `server/crm/routes.js:180` |
+| GET | `/api/crm/deals/:id` |  |  | `server/crm/routes.js:189` |
+| PATCH | `/api/crm/deals/:id` | `need('write')` |  | `server/crm/routes.js:190` |
+| POST | `/api/crm/leads` | `need('write')` |  | `server/crm/routes.js:191` |
+| GET | `/api/crm/notes/:noteId/attachments/:attId` | `need('read')` | Conteúdo de um anexo de nota (imagem/PDF), sob demanda: a lista de notas vem só com nome/tipo/tamanho e esta `url`. | `server/crm/routes.js:193` |
+| GET | `/api/crm/cadences` |  |  | `server/crm/routes.js:204` |
+| POST | `/api/crm/cadences` | `need('funnel')` |  | `server/crm/routes.js:205` |
+| PATCH | `/api/crm/cadences/:id` | `need('funnel')` |  | `server/crm/routes.js:206` |
+| DELETE | `/api/crm/cadences/:id` | `need('funnel')` |  | `server/crm/routes.js:207` |
+| GET | `/api/crm/tags` |  |  | `server/crm/routes.js:208` |
+| PUT | `/api/crm/deals/:id/tags` | `need('write')` |  | `server/crm/routes.js:209` |
+| POST | `/api/crm/deals/:id/move` | `need('write')` |  | `server/crm/routes.js:210` |
+| DELETE | `/api/crm/deals/:id` | `need('remove')` |  | `server/crm/routes.js:214` |
+| GET | `/api/crm/deals/:id/audit` | `need('remove')` |  | `server/crm/routes.js:215` |
+| GET | `/api/crm/activities` |  | ---- atividades / follow-ups (Fase 3). ownerId=me vira o usuário logado. | `server/crm/routes.js:218` |
+| GET | `/api/crm/activities/:id` |  |  | `server/crm/routes.js:219` |
+| POST | `/api/crm/activities` | `need('write')` |  | `server/crm/routes.js:225` |
+| PATCH | `/api/crm/activities/:id` | `need('write')` `ownActivity` |  | `server/crm/routes.js:229` |
+| POST | `/api/crm/activities/:id/complete` | `need('write')` `ownActivity` |  | `server/crm/routes.js:234` |
+| POST | `/api/crm/activities/:id/cancel` | `need('write')` `ownActivity` |  | `server/crm/routes.js:238` |
+| POST | `/api/crm/activities/:id/reopen` | `need('write')` `ownActivity` |  | `server/crm/routes.js:239` |
+| DELETE | `/api/crm/activities/:id` | `need('remove')` |  | `server/crm/routes.js:240` |
+| GET | `/api/crm/products` |  | ---- produtos (catálogo): todos leem; quem define o que se vende é gestor+ | `server/crm/routes.js:243` |
+| POST | `/api/crm/products` | `need('catalog')` |  | `server/crm/routes.js:244` |
+| PATCH | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:245` |
+| DELETE | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:246` |
+| POST | `/api/crm/notes` | `need('write')` | ---- notas | `server/crm/routes.js:249` |
+| POST | `/api/crm/deals/:id/attachments/review` | `need('write')` | Revisar com a RENATA um anexo do negócio (botão no anexo da nota): grava a revisão como nota no negócio (§131). | `server/crm/routes.js:255` |
+| PATCH | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:262` |
+| DELETE | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:263` |
+| GET | `/api/crm/import/fields` | `need('import')` | ---- importação (planilha) e clientes atuais do painel | `server/crm/routes.js:266` |
+| POST | `/api/crm/import/preview` | `need('import')` |  | `server/crm/routes.js:267` |
+| POST | `/api/crm/import/commit` | `need('import')` |  | `server/crm/routes.js:271` |
+| GET | `/api/crm/import/deals/fields` | `need('import')` |  | `server/crm/routes.js:275` |
+| POST | `/api/crm/import/deals/preview` | `need('import')` |  | `server/crm/routes.js:276` |
+| POST | `/api/crm/import/deals/commit` | `need('import')` |  | `server/crm/routes.js:277` |
+| GET | `/api/crm/bootstrap/preview` | `need('import')` |  | `server/crm/routes.js:281` |
+| POST | `/api/crm/bootstrap/commit` | `need('import')` |  | `server/crm/routes.js:282` |
 
 ## `/api/daily` — 5 rotas
 

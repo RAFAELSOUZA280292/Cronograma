@@ -234,7 +234,7 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                 {data.notes.length > 0 && (
                   <div className="crm-section">
                     <h3 className="crm-section-title">Notas</h3>
-                    <NoteThread notes={data.notes} currentUserId={currentUserId} canModerate={!!caps.remove} onChanged={afterChange} />
+                    <NoteThread notes={data.notes} currentUserId={currentUserId} canModerate={!!caps.remove} onChanged={afterChange} reviewDealId={caps.write ? dealId : null} />
                   </div>
                 )}
                 <div className="crm-section">

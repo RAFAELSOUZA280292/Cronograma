@@ -31,6 +31,7 @@ import * as DI from './dealImporter.js';
 import './googleSync.js'; // registra o espelho das atividades no Google Calendar do responsável
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 import { registerPiperunRoutes } from './piperun/routes.js';
+import { autoReviewOnNote, reviewDealAttachment } from './attachmentReader.js';
 
 const need = (cap) => (req, res, next) => {
   if (!crmCan(req.user, cap)) return res.status(403).json({ message: crmDeniedMessage(req.user) });
@@ -57,6 +58,8 @@ const h = (fn) => async (req, res, next) => {
 
 const orgOf = (req) => effectiveOrgId(req);
 // `req.crmActor` só existe na entrada por chave de API (/api/connect/crm, §99): a ação fica registrada como "Claude Code (por <dono da chave>)".
+// Cliente de IA da RENATA (import tardio: renata/index.js monta o catálogo que chama estas rotas). Sem chave = null (revisão só determinística).
+const renataClient = async () => { try { return await (await import('../renata/index.js')).getClient(); } catch { return null; } };
 const actorOf = (req) => (req.crmActor ? { ...req.crmActor, skipGoogle: !(req.body && req.body.syncGoogle === true) } : null) || (req.renataCommandId !== undefined
   ? { id: req.user.id, name: `RENATA (IA, a pedido de ${req.user.name || req.user.username})`, viaApi: true }
   : { id: req.user.id, name: req.user.name || req.user.username });
@@ -243,7 +246,19 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.delete('/products/:id', need('catalog'), h(async (req, res) => res.json(await P.deleteProduct(orgOf(req), actorOf(req), req.params.id))));
 
   // ---- notas
-  router.post('/notes', need('write'), h(async (req, res) => res.status(201).json({ note: await S.addNote(orgOf(req), actorOf(req), req.body || {}) })));
+  router.post('/notes', need('write'), h(async (req, res) => {
+    const note = await S.addNote(orgOf(req), actorOf(req), req.body || {});
+    res.status(201).json({ note });
+    if (req.renataCommandId === undefined) autoReviewOnNote({ orgId: orgOf(req), note, uploaderId: req.user.id, getClient: renataClient }); // proposta em PDF anexada ao negócio → revisão em nota (§131)
+  }));
+  // Revisar com a RENATA um anexo do negócio (botão no anexo da nota): grava a revisão como nota no negócio (§131).
+  router.post('/deals/:id/attachments/review', need('write'), h(async (req, res) => {
+    S.requireUuid(req.params.id, 'Negócio');
+    const r = await reviewDealAttachment({ orgId: orgOf(req), dealId: req.params.id, anexoId: String((req.body || {}).anexoId || ''), withFiles: crmCan(req.user, 'export'), client: await renataClient(),
+      actor: { id: req.user.id, name: `RENATA (a pedido de ${req.user.name || req.user.username})`, viaApi: true } });
+    if (r.status === 404) throw new CrmError(404, r.message);
+    res.status(201).json({ noteId: r.noteId, erros: r.review.erros.length + r.language.filter((x) => x.certeza === 'erro').length, verificar: r.review.verificar.length + r.language.filter((x) => x.certeza !== 'erro').length, leitura: r.leitura, aviso: r.languageSkipped || '' });
+  }));
   router.patch('/notes/:id', need('write'), h(async (req, res) => res.json({ note: await S.updateNote(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
   router.delete('/notes/:id', need('write'), h(async (req, res) => res.json(await S.deleteNote(orgOf(req), actorOf(req), req.params.id, { canModerate: crmCan(req.user, 'remove') }))));
 

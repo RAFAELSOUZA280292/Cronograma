@@ -27,7 +27,7 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `PORT` | `server/index.js`, `server/renata/internalCall.js` | `const port = process.env.PORT \|\| 3001;` |
 | `PROD` | `src/main.jsx` | `if (import.meta.env.PROD && 'serviceWorker' in navigator) {` |
 | `PUSH_EXTRA_HOSTS` | `server/push.js` | `const extra = (process.env.PUSH_EXTRA_HOSTS \|\| '').split(',').map((s) => s.trim()).filter(Boolean);` |
-| `RENATA_MODEL` | `server/renata/agent.js` | `export const RENATA_MODEL = process.env.RENATA_MODEL \|\| 'claude-sonnet-5';` |
+| `RENATA_MODEL` | `server/crm/attachmentReader.js`, `server/renata/agent.js` | `export const READER_MODEL = process.env.RENATA_MODEL \|\| 'claude-sonnet-5';` |
 | `RENATA_SCRIPTED_MODEL` | `server/renata/scriptedClient.js` | `const file = process.env.RENATA_SCRIPTED_MODEL;` |
 | `SEED_ADMIN_NAME` | `server/db.js` | `[uid('user'), username, hash, process.env.SEED_ADMIN_NAME \|\| 'Administrador PRICETAX']` |
 | `SEED_ADMIN_PASSWORD` | `server/db.js` | `const password = process.env.SEED_ADMIN_PASSWORD;` |

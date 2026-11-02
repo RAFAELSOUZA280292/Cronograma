@@ -6,7 +6,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import { AtSign, Bold, Heading2, Heading3, Italic, LayoutTemplate, Link2, List, ListOrdered, Minus, Pencil, Quote, Redo2, Send, Smile, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2 } from 'lucide-react';
+import { AtSign, Bold, FileSearch, Heading2, Heading3, Italic, LayoutTemplate, Link2, List, ListOrdered, Minus, Pencil, Quote, Redo2, Send, Smile, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2 } from 'lucide-react';
 import { AddMenu, AttachmentList, readFileAsAttachment, useMentionUsers } from '../ui/ComposeBox.jsx';
 import { IconButton, Button } from '../ui/index.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
@@ -54,6 +54,7 @@ const CSS = `
 .crmrn-note-head { display:flex; align-items:center; gap:var(--sp-2); margin-bottom:8px; font-size:12.5px; }
 .crmrn-note-head b { font-size:var(--fs-sm); color:var(--text-1); } .crmrn-note-head span { color:var(--text-4); }
 .crmrn-spacer { flex:1; }
+.crmrn-review { display:flex; flex-wrap:wrap; gap:var(--sp-2); margin-top:6px; }
 .crmrn-edit-actions { display:flex; justify-content:flex-end; gap:var(--sp-2); margin-top:8px; }
 @media (max-width: 767px) { .crmrn-btn { min-width:44px; height:44px; } .crmrn-emojis button { width:44px; height:44px; } .crmrn-emojis { grid-template-columns:repeat(6, 1fr); } }
 `;
@@ -227,6 +228,10 @@ export function RichNoteComposer({ about, placeholder, draftKey, onDirtyChange, 
     try {
       const ids = mentions.filter((m) => plain.includes(`@${m.name}`)).map((m) => m.id);
       await crm.addNote({ ...about, bodyHtml: html, attachments, links, mentions: ids });
+      if (about && about.entityType === 'deal' && attachments.some(isPdf)) { // a revisão automática da proposta roda no servidor e vira nota (§131)
+        notify('A RENATA vai revisar o PDF anexado: se for uma proposta, a revisão aparece aqui como nota em instantes.', { tone: 'info' });
+        if (onAdded) [25000, 60000].forEach((ms) => setTimeout(() => { Promise.resolve(onAdded()).catch(() => {}); }, ms));
+      }
       setHtml(''); setPlain(''); setMentions([]); setAttachments([]); setLinks([]); setEditorKey((k) => k + 1);
       try { if (onAdded) await onAdded(); } catch (e) { /* a nota já foi gravada */ }
     } catch (e) {
@@ -262,7 +267,29 @@ export function NoteBody({ note }) {
   return <div className="crmrn-doc" dangerouslySetInnerHTML={{ __html: sanitizeCrmNote(crmPlainToHtml(note.body)) }} />; // eslint-disable-line react/no-danger
 }
 
-function NoteRow({ n, own, canDelete, ctx, onChanged }) {
+const isPdf = (a) => /pdf/i.test((a && a.type) || '') || /\.pdf$/i.test((a && a.name) || '');
+
+// Revisar com a RENATA (§131): confere número × extenso, somas, datas, citações legais, CNPJ e linguagem e grava a revisão como nota do negócio.
+function ReviewButtons({ dealId, note, onChanged }) {
+  const [busy, setBusy] = useState('');
+  const pdfs = (note.attachments || []).filter(isPdf);
+  if (!dealId || !pdfs.length) return null;
+  async function review(a) {
+    setBusy(a.id);
+    try {
+      const r = await crm.reviewAttachment(dealId, `nota:${note.id}:${a.id}`);
+      notify(r.erros || r.verificar ? `Revisão registrada como nota: ${r.erros} erro(s) e ${r.verificar} ponto(s) a verificar.` : 'Revisão registrada como nota: nenhuma divergência encontrada.', { tone: 'success' });
+      if (onChanged) await onChanged();
+    } catch (e) { notify((e && e.message) || 'Não foi possível revisar o arquivo.', { tone: 'error' }); } finally { setBusy(''); }
+  }
+  return (
+    <div className="crmrn-review">
+      {pdfs.map((a) => <Button key={a.id} size="sm" icon={FileSearch} loading={busy === a.id} disabled={!!busy && busy !== a.id} disabledReason="Aguarde a revisão em andamento" onClick={() => review(a)}>{pdfs.length > 1 ? `Revisar “${a.name}” com a RENATA` : 'Revisar com a RENATA'}</Button>)}
+    </div>
+  );
+}
+
+function NoteRow({ n, own, canDelete, ctx, onChanged, reviewDealId }) {
   const [editing, setEditing] = useState(false);
   const [html, setHtml] = useState('');
   const [busy, setBusy] = useState(false);
@@ -298,11 +325,12 @@ function NoteRow({ n, own, canDelete, ctx, onChanged }) {
         </div>
       ) : <NoteBody note={n} />}
       {!editing && <AttachmentList attachments={n.attachments || []} links={n.links || []} />}
+      {!editing && <ReviewButtons dealId={reviewDealId} note={n} onChanged={onChanged} />}
     </div>
   );
 }
 
-export function RichNoteThread({ notes, currentUserId, canModerate, onChanged, showContext }) {
+export function RichNoteThread({ notes, currentUserId, canModerate, onChanged, showContext, reviewDealId = null }) {
   if (!notes.length) return null;
   return (
     <div className="crmrn">
@@ -310,7 +338,7 @@ export function RichNoteThread({ notes, currentUserId, canModerate, onChanged, s
       {notes.map((n) => {
         const own = !!currentUserId && n.createdBy === currentUserId;
         const ctx = showContext ? `${n.contactName ? ` · sobre ${n.contactName}` : ''}${n.dealTitle ? ` · sobre o negócio ${n.dealTitle}` : ''}` : '';
-        return <NoteRow key={n.id} n={n} own={own} canDelete={own || !!canModerate} ctx={ctx} onChanged={onChanged} />;
+        return <NoteRow key={n.id} n={n} own={own} canDelete={own || !!canModerate} ctx={ctx} onChanged={onChanged} reviewDealId={reviewDealId} />;
       })}
     </div>
   );

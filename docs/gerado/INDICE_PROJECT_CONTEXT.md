@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 9021 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 9032 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -199,3 +199,4 @@ O `PROJECT_CONTEXT.md` tem 9021 linhas (a memória cronológica de cada decisão
 | 8985 | 128. Agendas extras: várias contas por pessoa numa grade só (Google, Microsoft, link iCal), com cor, conflito… | - Por quê: o Ronaldo tem e-mail da PRICETAX, da BRASILPRICE (empresa só dele), agenda da PETCONT (também só dele), do Gmail pessoal e da Microsoft. P… |
 | 8998 | 129. API de conectividade à prova de qualquer IA: descoberta na primeira chamada, OpenAPI 3.1, guia e "Copiar… | - Catálogo único shared/connectCatalog.js (puro): cada ação com id, método, caminho, need (capacidade exigida), parâmetros, corpo com exemplo e respo… |
 | 9011 | 130. E-mail ligado ao CRM e às Empresas: selo, "Empresa fora do CRM", aba E-mails, RENATA e radar no cockpit … | - Por quê: negócios tocados só por e-mail (OKUBO, lead da parceira Tróia) não entravam no CRM. É a Fase 3/4 do plano do §127 feita SEM conta de servi… |
+| 9022 | 131. RENATA lê e revisa as propostas e documentos anexados nos negócios do CRM (2026-11-02, pedido do Rafael:… | - Onde ficam os anexos: anexos das notas do negócio (crmnotes.attachments[].dataUrl, até 5 por nota e ~3 MB cada) e arquivos importados do PipeRun (c… |
