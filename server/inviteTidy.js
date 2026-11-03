@@ -24,7 +24,7 @@ export async function tidyAnsweredInvites(userId, { force = false, max = 25 } = 
   const now = Date.now();
   if (!force && now - (lastRun.get(userId) || 0) < 3 * 60 * 1000) return { archived: 0, skipped: 'recente' };
   lastRun.set(userId, now);
-  const g = await gmailFor(userId);
+  const g = await gmailFor(userId, { source: 'convites', background: true });
   if (!g) return { archived: 0, skipped: 'sem Gmail' };
   const { data } = await g.gmail.users.messages.list({ userId: 'me', q: 'in:inbox filename:ics newer_than:120d', maxResults: max });
   const done = new Set();

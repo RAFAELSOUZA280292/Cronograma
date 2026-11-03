@@ -15,7 +15,7 @@ export function registerEmail(registry, deps = {}) {
   async function open(ctx) {
     const refusal = mailRefusal(await getStatus(ctx.user.id));
     if (refusal) return { refusal };
-    const g = await getGmail(ctx.user.id);
+    const g = await getGmail(ctx.user.id, { source: 'renata' });
     return g ? { gmail: g.gmail } : { refusal: mailRefusal({ configured: true, connected: false }) };
   }
   const failed = (e) => ({ status: (e && (e.code || (e.response && e.response.status))) === 404 ? 404 : 502, json: { message: friendlyMailError(e) } });

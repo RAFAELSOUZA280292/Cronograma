@@ -737,9 +737,11 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    setError('');
     apiGet(`/api/mail/threads/${id}`).then((d) => {
       if (!alive) return;
       if (!d || !Array.isArray(d.messages)) throw new Error('Resposta inesperada do servidor. Atualize a lista e tente de novo.');
@@ -749,7 +751,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
       onOpened(id, d.messages.some((m) => m.unread));
     }).catch((e) => { if (alive) setError(e.message); });
     return () => { alive = false; };
-  }, [id, onOpened]);
+  }, [id, onOpened, attempt]);
 
   const moveIt = () => { const last = [...data.messages].reverse().find((m) => !m.sent && m.from && m.from.email); onMove(last ? last.from : null); };
   const starIt = () => { onAct(data.starred ? 'unstar' : 'star'); setData((d) => ({ ...d, starred: !d.starred })); };
@@ -769,7 +771,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
   }));
 
   const back = showBack ? <IconButton label="Voltar para a lista" icon={ArrowLeft} size="sm" onClick={onBack} /> : null;
-  if (error) return <div className="mail-thread"><div className="mail-thread-bar">{back}</div><div style={{ marginTop: 14 }}><Callout tone="danger" icon={AlertTriangle} title="Não consegui abrir o e-mail">{error}</Callout></div></div>;
+  if (error) return <div className="mail-thread"><div className="mail-thread-bar">{back}</div><div style={{ marginTop: 14 }}><Callout tone="danger" icon={AlertTriangle} title="Não consegui abrir o e-mail" action={<Button onClick={() => setAttempt((n) => n + 1)}>Tentar de novo</Button>}>{error}</Callout></div></div>;
   if (!data) return <div className="mail-thread"><div className="mail-thread-bar">{back}</div><BusyBar active /></div>;
 
   const toggle = (mid) => setExpanded((prev) => { const n = new Set(prev); if (n.has(mid)) n.delete(mid); else n.add(mid); return n; });

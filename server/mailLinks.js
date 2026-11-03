@@ -10,6 +10,7 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { pool } from './db.js';
 import { crmCan } from './crm/permissions.js';
 import { canAccessProject } from './routes.js';
+import { isQuotaError } from './gmailQuota.js';
 import { gmailFor, mailStatus, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, mapLimit, friendlyMailError } from './googleMail.js';
 import { googleConfigured } from './googleCalendar.js';
 import { createNotification } from './notifications.js';
@@ -117,7 +118,7 @@ const META = ['From', 'To', 'Cc', 'Subject', 'Date', 'Message-ID'];
 const SCAN_EVERY = 6 * 60 * 60 * 1000;
 
 export async function scanUser(user, { full = false } = {}) {
-  const g = await gmailFor(user.id);
+  const g = await gmailFor(user.id, { source: 'varredura', background: true });
   if (!g) return 0;
   const st = await mailStatus(user.id);
   if (!st || !st.mail) return 0;
@@ -147,7 +148,11 @@ async function scanTick() {
   for (const r of rows) {
     const user = { id: r.id, orgId: r.org_id, name: r.name };
     let err = '';
-    try { await scanUser(user, { full: !r.full_at }); } catch (e) { err = friendlyMailError(e).slice(0, 300); }
+    try { await scanUser(user, { full: !r.full_at }); } catch (e) {
+      // Caixa ocupada (a pessoa está usando, ou a cota apertou): não marca como varrida; a próxima rodada (20 min) tenta de novo.
+      if ((e && e.code === 'GMAIL_BUSY') || isQuotaError(e)) continue;
+      err = friendlyMailError(e).slice(0, 300);
+    }
     await pool.query(
       `INSERT INTO mail_index_state (user_id, full_at, scan_at, last_error) VALUES ($1, CASE WHEN $2 = '' THEN now() END, now(), $2)
        ON CONFLICT (user_id) DO UPDATE SET scan_at=now(), last_error=$2, full_at=COALESCE(mail_index_state.full_at, CASE WHEN $2 = '' THEN now() END)`, [r.id, err]);
@@ -274,7 +279,7 @@ router.get('/thread/:rowId', h(async (req, res) => {
   if (!canReadContent(req.user, all.map((r) => r.user_id))) return res.status(403).json({ message: 'O texto desta conversa abre para os sócios e para quem participou dela.' });
   let lastErr = null;
   for (const src of all.filter((r) => canReadOwnerCopy(req.user, r.user_id))) {
-    const g = await gmailFor(src.user_id);
+    const g = await gmailFor(src.user_id, { source: 'equipe' });
     if (!g) continue;
     try {
       const { data } = await g.gmail.users.threads.get({ userId: 'me', id: src.thread_id, format: 'full' });
@@ -310,7 +315,7 @@ router.get('/row/:rowId/messages/:mid/attachments/:aid', h(async (req, res) => {
   if (!rows[0]) return res.status(404).json({ message: 'Conversa não encontrada.' });
   const { rows: all } = await pool.query('SELECT user_id FROM mail_thread_index WHERE org_id=$1 AND conv_key=$2', [req.user.orgId, rows[0].conv_key]);
   if (!canReadContent(req.user, all.map((r) => r.user_id)) || !canReadOwnerCopy(req.user, rows[0].user_id)) return res.status(403).json({ message: 'Os anexos desta conversa abrem para os sócios e para quem participou dela.' });
-  const g = await gmailFor(rows[0].user_id);
+  const g = await gmailFor(rows[0].user_id, { source: 'equipe' });
   if (!g) return res.status(409).json({ message: 'Quem trocou esta conversa desconectou o Gmail; o anexo não está disponível agora.' });
   try {
     const { data: msg } = await g.gmail.users.messages.get({ userId: 'me', id: mid, format: 'minimal' });

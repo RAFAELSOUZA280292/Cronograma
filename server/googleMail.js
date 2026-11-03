@@ -4,6 +4,7 @@
 // Funções puras (endereços, partes MIME, higienização, pastas) ficam aqui para serem testadas sem o Google.
 
 import { google } from 'googleapis';
+import { meteredGmail } from './gmailQuota.js';
 import sanitizeHtml from 'sanitize-html';
 import { getAuthedClientForUser, GMAIL_SCOPE, GMAIL_SETTINGS_SCOPE, googleConfigured } from './googleCalendar.js';
 
@@ -245,15 +246,16 @@ export function forgetMailScope(userId) { scopeCache.delete(userId); }
 // Gmail liberado segundo a última conferência feita nesta instância (true/false), ou null se ninguém conferiu ainda (tela de usuários).
 export function knownMailScope(userId) { const hit = scopeCache.get(userId); return hit ? !!hit.ok : null; }
 
-export async function gmailFor(userId) {
+// `source` vai para o medidor da cota da pessoa (server/gmailQuota.js); `background` = tarefa de fundo, que cede a vez quando a cota aperta.
+export async function gmailFor(userId, { source = 'caixa', background = false } = {}) {
   if (!googleConfigured()) return null;
   const client = await getAuthedClientForUser(userId);
-  return client ? { client, gmail: google.gmail({ version: 'v1', auth: client }) } : null;
+  return client ? { client, gmail: meteredGmail(google.gmail({ version: 'v1', auth: client }), userId, { source, background }) } : null;
 }
 
 export async function mailStatus(userId) {
   if (!googleConfigured()) return { configured: false, connected: false, mail: false };
-  const g = await gmailFor(userId);
+  const g = await gmailFor(userId, { source: 'status' });
   if (!g) return { configured: true, connected: false, mail: false };
   const hit = scopeCache.get(userId);
   if (hit && Date.now() - hit.at < 5 * 60 * 1000) return { configured: true, connected: true, mail: hit.ok, email: hit.email, rules: hit.rules };
