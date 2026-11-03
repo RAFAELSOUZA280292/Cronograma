@@ -222,7 +222,7 @@ function mentionAt(ed) {
   return { query, from: $from.pos - query.length - 1, to: $from.pos, top: c.bottom + 4, left: c.left };
 }
 
-function MailEditor({ onReady, onChange, onFiles, onMention }) {
+function MailEditor({ onReady, onChange, onFiles, onMention, onAttach }) {
   const imgRef = useRef(null);
   const editorRef = useRef(null);
   const [ment, setMent] = useState(null); // { query, from, to, top, left }
@@ -334,6 +334,7 @@ function MailEditor({ onReady, onChange, onFiles, onMention }) {
         {btn(editor.isActive('blockquote'), 'Citação', () => c().toggleBlockquote().run(), Quote)}
         {btn(editor.isActive('link'), 'Link', setLink, Link2)}
         {btn(false, 'Inserir imagem no texto (ou cole/arraste)', () => imgRef.current && imgRef.current.click(), ImagePlus)}
+        {onAttach && btn(false, 'Anexar arquivo (PDF, Word, Excel, ZIP…)', onAttach, Paperclip)}
         <input ref={imgRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(e) => { insertImages(imageFiles(e.target.files)); e.target.value = ''; }} />
       </div>
       <EditorContent editor={editor} className="mc-body" />
@@ -364,6 +365,7 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   const [loadError, setLoadError] = useState('');
   const [to, setTo] = useState(addrText(init.to));
   const [cc, setCc] = useState('');
+  const [fileDrag, setFileDrag] = useState(false); // arquivo sendo arrastado por cima da janela (aviso "Solte para anexar")
   const [bcc, setBcc] = useState('');
   const [showCc, setShowCc] = useState(false);
   const [subject, setSubject] = useState(init.subject || '');
@@ -572,11 +574,13 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   }
 
   const onKeyDown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } };
+  const pickFiles = () => { if (fileRef.current) fileRef.current.click(); };
 
   return (
-    <section className={`mc${isMobile ? ' mobile' : ''}`} role="dialog" aria-label={TITLES[mode]} onKeyDown={onKeyDown}
-      onDragOver={(e) => { if (ctx && e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
-      onDrop={(e) => { if (!ctx || e.defaultPrevented || !e.dataTransfer.files.length) return; e.preventDefault(); addFiles(e.dataTransfer.files); }}
+    <section className={`mc${isMobile ? ' mobile' : ''}${fileDrag ? ' file-drag' : ''}`} role="dialog" aria-label={TITLES[mode]} onKeyDown={onKeyDown}
+      onDragOver={(e) => { if (ctx && e.dataTransfer.types.includes('Files')) { e.preventDefault(); if (!fileDrag) setFileDrag(true); } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFileDrag(false); }}
+      onDrop={(e) => { setFileDrag(false); if (!ctx || e.defaultPrevented || !e.dataTransfer.files.length) return; e.preventDefault(); addFiles(e.dataTransfer.files); }}
       onPaste={(e) => {
         // Colar arquivo fora do texto (Para, Assunto…): imagem vai para o corpo, o resto vira anexo. Dentro do texto, quem cuida é o editor.
         if (!ctx || e.defaultPrevented) return;
@@ -609,7 +613,7 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
           )}
           <div className="mc-field"><label htmlFor="mc-subject">Assunto</label><input id="mc-subject" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={500} /></div>
 
-          <MailEditor onReady={(ed) => { editorRef.current = ed; }} onChange={setHtml} onFiles={addFiles} onMention={mention} />
+          <MailEditor onReady={(ed) => { editorRef.current = ed; }} onChange={setHtml} onFiles={addFiles} onMention={mention} onAttach={ctx ? pickFiles : null} />
 
           {(files.length > 0 || forwardList.length > 0 || draftAtts.length > 0 || htmlImageBytes(html) > 0) && (
             <ul className="mc-atts" aria-label="Anexos">
@@ -671,9 +675,11 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
         </div>
       )}
       {error && <div className="mc-error" role="alert">{error}</div>}
+      {fileDrag && <div className="mc-dropzone" aria-hidden="true"><Paperclip size={22} /><b>Solte para anexar</b><span>PDF, Word, Excel, ZIP ou qualquer arquivo · imagem solta no texto entra no corpo</span></div>}
       <footer className="mc-foot">
         <Button variant="primary" icon={Send} onClick={send} loading={busy} disabled={!ctx || busy} title="Enviar (Ctrl+Enter)">Enviar</Button>
-        <IconButton label="Anexar arquivo" icon={Paperclip} onClick={() => fileRef.current && fileRef.current.click()} disabled={!ctx} />
+        {/* Com texto (§161): só o clipe, sem rótulo, não parecia anexo — o Rafael achou que só dava para pôr imagem e link. */}
+        <Button icon={Paperclip} onClick={pickFiles} disabled={!ctx} disabledReason="Carregando a mensagem…" title="Anexar PDF, Word, Excel, ZIP ou qualquer arquivo (até 20 MB no total)">Anexar arquivo</Button>
         <input ref={fileRef} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
         <span className="mc-saved" aria-live="polite">
           {saveState.saving ? 'Salvando rascunho…' : saveState.error ? 'Rascunho não salvo' : saveState.at ? `Rascunho salvo às ${saveState.at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}

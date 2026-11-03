@@ -390,3 +390,9 @@ body.mail-resizing iframe { pointer-events: none; }
 .mc-chips.drop { outline: 2px dashed var(--ui-info); outline-offset: 2px; border-radius: 8px; background: var(--ui-info-bg); }
 .mc-chip[draggable="true"] { cursor: grab; }
 .mc-body a[href^="mailto:"] { font-weight: 600; text-decoration: none; }
+
+/* Anexar (§161): botão com texto no rodapé e aviso ao arrastar arquivo por cima da janela de escrever. */
+.mc.file-drag { outline: 3px dashed var(--ui-info); outline-offset: -6px; }
+.mc-dropzone { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: color-mix(in srgb, var(--bg-1) 88%, transparent); color: var(--text-1); pointer-events: none; text-align: center; padding: 20px; border-radius: inherit; }
+.mc-dropzone b { font-size: 16px; }
+.mc-dropzone span { font-size: 12.5px; color: var(--text-4); }
