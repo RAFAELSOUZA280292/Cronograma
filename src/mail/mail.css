@@ -379,3 +379,7 @@ body.mail-resizing iframe { pointer-events: none; }
 .mc-chip-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; padding: 0; }
 .mc-chip-x:hover, .mc-chip-x:focus-visible { background: var(--bg-4, rgba(127, 127, 127, .25)); outline: none; }
 @media (pointer: coarse) { .mc-chip-x { width: 28px; height: 28px; } }
+
+/* Cartãozinho do arrastar para pasta (§155): fora da tela, o navegador só fotografa. */
+.mail-drag-ghost { position: fixed; top: -200px; left: -400px; padding: 24px 0 0 10px; pointer-events: none; }
+.mail-drag-ghost span { display: block; box-sizing: border-box; max-width: 240px; padding: 6px 12px; border-radius: 999px; font: 600 12.5px/1.3 Inter, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #111; background: #F5C400; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }

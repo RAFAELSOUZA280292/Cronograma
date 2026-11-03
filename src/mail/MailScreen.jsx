@@ -605,7 +605,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onGoPersona
                     className={`mail-row${t.unread ? ' unread' : ''}${openId === t.id ? ' open' : ''}${selected.has(t.id) ? ' sel' : ''}${cursor === t.id && openId !== t.id ? ' cur' : ''}`}
                     {...activateRow(() => openThread(t.id))}
                     draggable={!isMobile && folder !== 'DRAFT'}
-                    onDragStart={(e) => { e.dataTransfer.setData('application/x-pt-threads', JSON.stringify(dragIds(t.id))); e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragStart={(e) => { const ids = dragIds(t.id); e.dataTransfer.setData('application/x-pt-threads', JSON.stringify(ids)); e.dataTransfer.effectAllowed = 'move'; dragPreview(e, ids.length > 1 ? `${ids.length} conversas` : t.subject || '(sem assunto)'); }}
                     aria-label={`${t.unread ? 'Não lido. ' : ''}${t.from.map(who).join(', ')}: ${t.subject}`}
                   >
                     <input
@@ -895,6 +895,21 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
       ))}
     </div>
   );
+}
+
+// Arrastar para uma pasta (§155): no lugar da linha inteira (grande, cobria o nome das pastas), um cartãozinho com o assunto ou
+// "N conversas", preso ao cursor. Montado fora da tela só durante o início do arraste.
+function dragPreview(e, label) {
+  if (!e.dataTransfer || !e.dataTransfer.setDragImage) return;
+  // Moldura transparente em cima/à esquerda: o cartão aparece ABAIXO do cursor e o nome da pasta de destino continua visível.
+  const el = document.createElement('div');
+  el.className = 'mail-drag-ghost';
+  const pill = document.createElement('span');
+  pill.textContent = `✉  ${String(label).slice(0, 60)}`;
+  el.appendChild(pill);
+  document.body.appendChild(el);
+  e.dataTransfer.setDragImage(el, 0, 0);
+  setTimeout(() => el.remove(), 0);
 }
 
 function replyAllCount(m, me) {
