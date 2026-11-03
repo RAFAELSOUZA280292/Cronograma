@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 198 arquivos
+## `server/` — 199 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -96,9 +96,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/evals/taskLinkEval.js` | 150 | Avaliação de qualidade da sugestão tarefa → atividade (Fase 5 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
+| `server/gmailQuota.js` | 91 | Cota do Gmail por pessoa (2026-11-03; Rafael abriu um e-mail e viu "O Google pediu uma pausa"). O Google limita cada caixa a |
 | `server/google.js` | 91 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleCalendar.js` | 482 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleMail.js` | 299 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
+| `server/googleMail.js` | 301 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/icalFeed.js` | 315 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
 | `server/index.js` | 227 |  |
@@ -119,7 +120,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/mail.js` | 704 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
 | `server/mailCache.js` | 46 | Memória curta da Caixa de e-mail (Fase 2 da varredura de 02/11, velocidade). Só na memória do processo, nunca no banco: |
 | `server/mailCompose.js` | 493 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
-| `server/mailLinks.js` | 457 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
+| `server/mailLinks.js` | 462 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
 | `server/mailLinksCore.js` | 329 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
 | `server/mailLinksSchema.js` | 65 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Só aditivo; chamado por initDb(). O índice guarda SÓ metadados (ids, assunto, |
 | `server/materialText.js` | 152 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
@@ -361,7 +362,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/mail/InviteCard.jsx` | 145 | Cartão de convite de reunião na leitura do e-mail (2026-11-02): convite novo ou alterado, cancelamento, resposta de alguém e |
 | `src/mail/MailFrame.jsx` | 34 | Corpo de e-mail desenhado num iframe sem script (sandbox), com o HTML já higienizado no servidor. Usado na leitura, |
 | `src/mail/MailLinks.jsx` | 344 | E-mail ligado ao CRM e às Empresas (§130). Selo da conversa ("Cliente · KUHN", "Lead · OKUBO · Proposta", "Parceiro · Tróia"), |
-| `src/mail/MailScreen.jsx` | 1047 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
+| `src/mail/MailScreen.jsx` | 1049 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
 | `src/mail/SignatureDialog.jsx` | 142 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
 | `src/mail/mail.css` | 304 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
 | `src/mail/mailImage.js` | 94 | Imagens da Caixa de e-mail (pacote de personalização, 2026-11-02): imagem colada/arrastada no corpo e imagem própria da |

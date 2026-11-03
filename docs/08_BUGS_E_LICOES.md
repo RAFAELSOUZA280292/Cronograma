@@ -641,6 +641,7 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 ---
 | Teste HTTP antigo (`seguranca-altos`) falha depois de uma mudança que ele não cobria (lista sem transcrição, §138) e ainda quebra com "The server does not support SSL connections" | os testes HTTP não estão no `test:puro`, então ninguém os roda a cada entrega; e quem importa módulo do `server/` usa o `pool` do `db.js`, que sem `DATABASE_URL` tenta SSL | §145 | Ao mexer numa rota, rode também o teste HTTP da área com `BASE=http://localhost:3001 DATABASE_URL=postgres://localhost:5432/cronograma_dev`; teste velho que falha por mudança legítima é atualizado no mesmo commit |
 | Achado de "IP falsificável" sem prova | não dá para saber pelo código como o proxy monta `X-Real-IP`/`X-Forwarded-For` | §145 | Conferir em produção com cabeçalho forjado (rota de diagnóstico temporária) antes de mudar `clientIp`; na Railway os dois já vêm sobrescritos com o IP real |
+| "O Google pediu uma pausa" ao abrir um e-mail | a cota do Gmail (15.000 unidades/min) é **por caixa** e soma tudo o que lê dela: Caixa, varredura da equipe, convites, RENATA, colegas; nada media e a Caixa desistia na 1ª recusa | §148 | Toda leitura nova do Gmail passa por `gmailFor(id, { source, background })`; tarefa de fundo usa `background: true`; o log "Gmail: cota da pessoa…" diz quem gastou |
 
 ## Não verificado / dúvidas
 - Não rodei nenhum script de `scripts/` nesta redação (somente leitura): as descrições vêm do cabeçalho de `docs/gerado/TESTES.md` e de `PROJECT_CONTEXT.md`.

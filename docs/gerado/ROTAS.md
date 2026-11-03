@@ -514,19 +514,19 @@ Arquivos: `server/mailLinks.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail-links/person` | `needCrm` | Conversas de toda a equipe com um endereço (Caixa de e-mail, ao pesquisar ou clicar num e-mail do painel): a pesquisa da Caixa só vê o Gmail da própria pessoa; aqui entr… | `server/mailLinks.js:215` |
-| GET | `/api/mail-links/company/:id` | `needCrm` |  | `server/mailLinks.js:222` |
-| GET | `/api/mail-links/deal/:id` | `needCrm` |  | `server/mailLinks.js:229` |
-| GET | `/api/mail-links/project/:id` |  |  | `server/mailLinks.js:236` |
-| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:267` |
-| GET | `/api/mail-links/row/:rowId/messages/:mid/attachments/:aid` |  |  | `server/mailLinks.js:306` |
-| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:336` |
-| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:343` |
-| POST | `/api/mail-links/link` | `needWrite` | "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa quando está vazio e, se pedido, cadastra… | `server/mailLinks.js:359` |
-| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:391` |
-| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:400` |
-| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:425` |
-| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:452` |
+| GET | `/api/mail-links/person` | `needCrm` | Conversas de toda a equipe com um endereço (Caixa de e-mail, ao pesquisar ou clicar num e-mail do painel): a pesquisa da Caixa só vê o Gmail da própria pessoa; aqui entr… | `server/mailLinks.js:220` |
+| GET | `/api/mail-links/company/:id` | `needCrm` |  | `server/mailLinks.js:227` |
+| GET | `/api/mail-links/deal/:id` | `needCrm` |  | `server/mailLinks.js:234` |
+| GET | `/api/mail-links/project/:id` |  |  | `server/mailLinks.js:241` |
+| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:272` |
+| GET | `/api/mail-links/row/:rowId/messages/:mid/attachments/:aid` |  |  | `server/mailLinks.js:311` |
+| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:341` |
+| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:348` |
+| POST | `/api/mail-links/link` | `needWrite` | "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa quando está vazio e, se pedido, cadastra… | `server/mailLinks.js:364` |
+| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:396` |
+| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:405` |
+| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:430` |
+| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:457` |
 
 ## `/api/meeting-inbox` — 4 rotas
 
