@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-611 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+614 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (78)
+## 2026-11-02 (81)
 
+- `b4eee3c` 23:56 — Segurança: cliente sem chave de API, agendamento com freio, iCal sem IP interno, e-mail só da própria cópia, CSP só relatório; assinatura não perde edição
+- `3698f61` 23:34 — Cérebro: ressalva dos escopos restritos do Gmail na próxima etapa
+- `0c298bc` 23:33 — Cérebro: próxima etapa (e-mail de várias contas) no Estado atual
 - `0dfe3e5` 23:27 — Cérebro: convite respondido saindo da Entrada (§144) confirmado pelo Rafael
 - `bfd5a82` 23:22 — Convite respondido sai da Caixa de entrada, como no Gmail: pelo cartão, pela Agenda ou por fora (vai para o Arquivo) (§144)
 - `7e0cbd3` 23:11 — Cérebro: formato único da RENATA (§143) confirmado pelo Rafael

@@ -2,57 +2,57 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **431 rotas** em **41 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **432 rotas** em **42 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 89 |
-| `/api/xflow` | `server/xflow.js` | 90 |
-| `/api/google` | `server/google.js` | 91 |
-| `/api/microsoft` | `server/microsoft.js` | 92 |
-| `/api/agenda/booking` | `server/agendaBooking.js` | 93 |
-| `/api/agenda` | `server/agenda.js` | 94 |
-| `/api/public-booking` | `server/agendaBooking.js` | 95 |
-| `/api/mail` | `server/mail.js` | 96 |
-| `/api/mail-links` | `server/mailLinks.js` | 97 |
-| `/api/whatsapp` | `server/whatsapp.js` | 98 |
-| `/api/whatsapp` | `server/whatsapp.js` | 99 |
-| `/api/macro` | `server/macro.js` | 100 |
-| `/api/inventory` | `server/inventory.js` | 101 |
-| `/api/inventory` | `server/inventoryEdit.js` | 102 |
-| `/api/gaps` | `server/gaps.js` | 103 |
-| `/api/task-links` | `server/taskLinks.js` | 104 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 105 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 106 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 107 |
-| `/api/assistant` | `server/assistant.js` | 108 |
-| `/api/knowledge` | `server/knowledge.js` | 109 |
-| `/api/pareceres` | `server/pareceres.js` | 110 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 111 |
-| `/api/crm` | `server/crm/routes.js` | 112 |
-| `/api/renata` | `server/renata/routes.js` | 113 |
-| `/api/widget` | `server/widget.js` | 114 |
-| `/api/daily` | `server/daily.js` | 115 |
-| `/api/home-prefs` | `server/homePrefs.js` | 116 |
-| `/api/tours` | `server/tours.js` | 117 |
-| `/api/templates` | `server/documentTemplates.js` | 118 |
-| `/api/library-search` | `server/librarySearch.js` | 119 |
-| `/api/briefing` | `server/briefing.js` | 120 |
-| `/api/client360` | `server/client360.js` | 121 |
-| `/api/connect` | `server/connect.js` | 122 |
-| `/api/company-share` | `server/companyShare.js` | 123 |
-| `/api/project-vault` | `server/projectVault.js` | 124 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 125 |
-| `/api/public-company` | `server/companyShare.js` | 126 |
-| `/d` | `server/companyShare.js` | 127 |
-| `/d` | `server/errorHandler.js` | 128 |
-| `/api/push` | `server/push.js` | 129 |
-| `/api/ops-intel` | `server/opsIntel.js` | 130 |
-| `/api/experience` | `server/experience.js` | 131 |
-| `/api/project-history` | `server/projectVersions.js` | 132 |
-| `/api` | `server/errorHandler.js` | 140 |
+| `/api` | `server/routes.js` | 106 |
+| `/api/xflow` | `server/xflow.js` | 107 |
+| `/api/google` | `server/google.js` | 108 |
+| `/api/microsoft` | `server/microsoft.js` | 109 |
+| `/api/agenda/booking` | `server/agendaBooking.js` | 110 |
+| `/api/agenda` | `server/agenda.js` | 111 |
+| `/api/public-booking` | `server/agendaBooking.js` | 112 |
+| `/api/mail` | `server/mail.js` | 113 |
+| `/api/mail-links` | `server/mailLinks.js` | 114 |
+| `/api/whatsapp` | `server/whatsapp.js` | 115 |
+| `/api/whatsapp` | `server/whatsapp.js` | 116 |
+| `/api/macro` | `server/macro.js` | 117 |
+| `/api/inventory` | `server/inventory.js` | 118 |
+| `/api/inventory` | `server/inventoryEdit.js` | 119 |
+| `/api/gaps` | `server/gaps.js` | 120 |
+| `/api/task-links` | `server/taskLinks.js` | 121 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 122 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 123 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 124 |
+| `/api/assistant` | `server/assistant.js` | 125 |
+| `/api/knowledge` | `server/knowledge.js` | 126 |
+| `/api/pareceres` | `server/pareceres.js` | 127 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 128 |
+| `/api/crm` | `server/crm/routes.js` | 129 |
+| `/api/renata` | `server/renata/routes.js` | 130 |
+| `/api/widget` | `server/widget.js` | 131 |
+| `/api/daily` | `server/daily.js` | 132 |
+| `/api/home-prefs` | `server/homePrefs.js` | 133 |
+| `/api/tours` | `server/tours.js` | 134 |
+| `/api/templates` | `server/documentTemplates.js` | 135 |
+| `/api/library-search` | `server/librarySearch.js` | 136 |
+| `/api/briefing` | `server/briefing.js` | 137 |
+| `/api/client360` | `server/client360.js` | 138 |
+| `/api/connect` | `server/connect.js` | 139 |
+| `/api/company-share` | `server/companyShare.js` | 140 |
+| `/api/project-vault` | `server/projectVault.js` | 141 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 142 |
+| `/api/public-company` | `server/companyShare.js` | 143 |
+| `/d` | `server/companyShare.js` | 144 |
+| `/d` | `server/errorHandler.js` | 145 |
+| `/api/push` | `server/push.js` | 146 |
+| `/api/ops-intel` | `server/opsIntel.js` | 147 |
+| `/api/experience` | `server/experience.js` | 148 |
+| `/api/project-history` | `server/projectVersions.js` | 149 |
+| `/api` | `server/errorHandler.js` | 157 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -118,13 +118,21 @@ Arquivos: `server/routes.js`.
 | POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1449` |
 | PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1465` |
 
-## `(sem prefixo conhecido)` — 3 rotas
+## `` — 2 rotas
 
-Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.js`.
+Arquivos: `server/index.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:157` |
+| POST | `/api/csp-report` |  |  | `server/index.js:73` |
+| GET | `/{*splat}` |  |  | `server/index.js:174` |
+
+## `(sem prefixo conhecido)` — 2 rotas
+
+Arquivos: `server/payloadStats.js`, `server/xflowTransitions.js`.
+
+| Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
+|---|---|---|---|---|
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
@@ -134,29 +142,29 @@ Arquivos: `server/agenda.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/agenda` | `requireAuth` |  | `server/agenda.js:30` |
-| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:168` |
-| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:181` |
-| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:190` |
-| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:199` |
-| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:211` |
-| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:222` |
-| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:254` |
-| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:268` |
-| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:281` |
-| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:285` |
-| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:295` |
-| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:299` |
-| GET | `/api/agenda/colors` | `requireAuth` |  | `server/agenda.js:306` |
-| GET | `/api/agenda/people` | `requireAuth` |  | `server/agenda.js:310` |
-| GET | `/api/agenda/with` | `requireAuth` | "Reunião com…": agenda de até 6 pessoas no período, sem assinar (some ao fechar). | `server/agenda.js:315` |
-| GET | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:326` |
-| PUT | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:329` |
-| GET | `/api/agenda/search` | `requireAuth` | Busca nos seus compromissos do Google (um ano para trás e um para frente, como a lupa do Google Agenda). | `server/agenda.js:338` |
-| POST | `/api/agenda/tasks` | `requireAuth` |  | `server/agenda.js:347` |
-| PATCH | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:358` |
-| DELETE | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:362` |
-| POST | `/api/agenda/out-of-office` | `requireAuth` | Ausente: bloco "Fora do escritório" do Google, que recusa sozinho os convites no período (com a mensagem, se pedir). | `server/agenda.js:368` |
+| GET | `/api/agenda` | `requireAuth` |  | `server/agenda.js:31` |
+| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:169` |
+| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:182` |
+| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:191` |
+| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:200` |
+| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:212` |
+| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:223` |
+| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:255` |
+| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:269` |
+| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:282` |
+| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:286` |
+| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:297` |
+| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:301` |
+| GET | `/api/agenda/colors` | `requireAuth` |  | `server/agenda.js:308` |
+| GET | `/api/agenda/people` | `requireAuth` |  | `server/agenda.js:312` |
+| GET | `/api/agenda/with` | `requireAuth` | "Reunião com…": agenda de até 6 pessoas no período, sem assinar (some ao fechar). | `server/agenda.js:317` |
+| GET | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:328` |
+| PUT | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:331` |
+| GET | `/api/agenda/search` | `requireAuth` | Busca nos seus compromissos do Google (um ano para trás e um para frente, como a lupa do Google Agenda). | `server/agenda.js:340` |
+| POST | `/api/agenda/tasks` | `requireAuth` |  | `server/agenda.js:349` |
+| PATCH | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:360` |
+| DELETE | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:364` |
+| POST | `/api/agenda/out-of-office` | `requireAuth` | Ausente: bloco "Fora do escritório" do Google, que recusa sozinho os convites no período (com a mensagem, se pedir). | `server/agenda.js:370` |
 
 ## `/api/agenda/booking` — 2 rotas
 
@@ -164,8 +172,8 @@ Arquivos: `server/agendaBooking.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:168` |
-| PUT | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:171` |
+| GET | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:172` |
+| PUT | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:175` |
 
 ## `/api/assistant` — 10 rotas
 
@@ -225,32 +233,32 @@ Arquivos: `server/connect.js`. Proteção do grupo (`router.use` global): `serve
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:76` |
-| POST | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:84` |
-| GET | `/api/connect/actions` | `requireAuth` | O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações). | `server/connect.js:110` |
-| DELETE | `/api/connect/tokens/:id` | `requireAuth` |  | `server/connect.js:121` |
-| GET | `/api/connect/openapi.json` | `optionalBearer` |  | `server/connect.js:196` |
-| GET | `/api/connect/docs` | `optionalBearer` |  | `server/connect.js:200` |
-| GET | `/api/connect` | `bearer` | Descoberta (§129): a primeira chamada de qualquer IA. Sem chave = 401 com o jeito de autenticar; com chave = quem é, o que pode e como chamar cada ação. | `server/connect.js:206` |
-| GET | `/api/connect/team-day` |  | ------------------------------------------------------------------ dia da equipe por chave (2026-10-29) Só leitura, só chave "Ler tudo"/"Ler e editar tudo" de um adminis… | `server/connect.js:251` |
-| USE | `/api/connect/crm` |  | monta: crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] })); | `server/connect.js:294` |
-| GET | `/api/connect/me` |  |  | `server/connect.js:296` |
-| GET | `/api/connect/activities` |  |  | `server/connect.js:340` |
-| POST | `/api/connect/activities` | `needScope('read_create')` |  | `server/connect.js:355` |
-| GET | `/api/connect/board` |  | Gravar exige apply+confirm e o `digest` da prévia (o quadro não pode ter mudado entre as duas chamadas); o estado anterior vira uma cópia em "Versões" (sempre, sem a reg… | `server/connect.js:420` |
-| POST | `/api/connect/board/plan` |  |  | `server/connect.js:429` |
-| GET | `/api/connect/companies` |  |  | `server/connect.js:498` |
-| GET | `/api/connect/companies/:id` |  |  | `server/connect.js:522` |
-| GET | `/api/connect/companies/:id/meetings/:meetingId` |  |  | `server/connect.js:551` |
-| POST | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:594` |
-| GET | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:618` |
-| GET | `/api/connect/companies/:id/transcripts/:submissionId` | `needTranscripts` |  | `server/connect.js:626` |
-| POST | `/api/connect/companies/:id/transcripts/:submissionId/retry` | `needTranscripts` |  | `server/connect.js:642` |
-| PATCH | `/api/connect/companies/:id/meetings/:meetingId` | `needMeetingsEdit` |  | `server/connect.js:719` |
-| GET | `/api/connect/companies/:id/meetings/:meetingId/edits` | `needMeetingsEdit` |  | `server/connect.js:726` |
-| POST | `/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo` | `needMeetingsEdit` |  | `server/connect.js:735` |
-| GET | `/api/connect/agenda` |  |  | `server/connect.js:743` |
-| POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:942` |
+| GET | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:77` |
+| POST | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:85` |
+| GET | `/api/connect/actions` | `requireAuth` | O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações). | `server/connect.js:112` |
+| DELETE | `/api/connect/tokens/:id` | `requireAuth` |  | `server/connect.js:123` |
+| GET | `/api/connect/openapi.json` | `optionalBearer` |  | `server/connect.js:198` |
+| GET | `/api/connect/docs` | `optionalBearer` |  | `server/connect.js:202` |
+| GET | `/api/connect` | `bearer` | Descoberta (§129): a primeira chamada de qualquer IA. Sem chave = 401 com o jeito de autenticar; com chave = quem é, o que pode e como chamar cada ação. | `server/connect.js:208` |
+| GET | `/api/connect/team-day` |  | ------------------------------------------------------------------ dia da equipe por chave (2026-10-29) Só leitura, só chave "Ler tudo"/"Ler e editar tudo" de um adminis… | `server/connect.js:253` |
+| USE | `/api/connect/crm` |  | monta: crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] })); | `server/connect.js:296` |
+| GET | `/api/connect/me` |  |  | `server/connect.js:298` |
+| GET | `/api/connect/activities` |  |  | `server/connect.js:342` |
+| POST | `/api/connect/activities` | `needScope('read_create')` |  | `server/connect.js:357` |
+| GET | `/api/connect/board` |  | Gravar exige apply+confirm e o `digest` da prévia (o quadro não pode ter mudado entre as duas chamadas); o estado anterior vira uma cópia em "Versões" (sempre, sem a reg… | `server/connect.js:422` |
+| POST | `/api/connect/board/plan` |  |  | `server/connect.js:431` |
+| GET | `/api/connect/companies` |  |  | `server/connect.js:500` |
+| GET | `/api/connect/companies/:id` |  |  | `server/connect.js:524` |
+| GET | `/api/connect/companies/:id/meetings/:meetingId` |  |  | `server/connect.js:553` |
+| POST | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:596` |
+| GET | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:620` |
+| GET | `/api/connect/companies/:id/transcripts/:submissionId` | `needTranscripts` |  | `server/connect.js:628` |
+| POST | `/api/connect/companies/:id/transcripts/:submissionId/retry` | `needTranscripts` |  | `server/connect.js:644` |
+| PATCH | `/api/connect/companies/:id/meetings/:meetingId` | `needMeetingsEdit` |  | `server/connect.js:721` |
+| GET | `/api/connect/companies/:id/meetings/:meetingId/edits` | `needMeetingsEdit` |  | `server/connect.js:728` |
+| POST | `/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo` | `needMeetingsEdit` |  | `server/connect.js:737` |
+| GET | `/api/connect/agenda` |  |  | `server/connect.js:745` |
+| POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:944` |
 
 ## `/api/crm` — 88 rotas
 
@@ -605,8 +613,8 @@ Arquivos: `server/agendaBooking.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/public-booking/:token` |  |  | `server/agendaBooking.js:190` |
-| POST | `/api/public-booking/:token/book` |  |  | `server/agendaBooking.js:204` |
+| GET | `/api/public-booking/:token` |  |  | `server/agendaBooking.js:194` |
+| POST | `/api/public-booking/:token/book` |  |  | `server/agendaBooking.js:208` |
 
 ## `/api/public-company` — 1 rotas
 
@@ -778,4 +786,5 @@ Arquivos: `server/companyShare.js`.
 ## Rotas que NÃO passam pelo roteador `/api`
 
 - `GET /d/…` (dados públicos do link de acompanhamento) e `/a/…`, `/acompanhamento/…` (páginas públicas; `X-Robots-Tag: noindex`) — ver `server/companyShare.js` e `server/index.js`.
+- `POST /api/csp-report` (relatórios da CSP em modo só relatório, sem login; §145) — definida direto no `server/index.js`.
 - Arquivos estáticos do front (`dist/`) e o *fallback* de página única (SPA) ficam no fim do `server/index.js`; qualquer `/api/...` desconhecido responde 404 em JSON.

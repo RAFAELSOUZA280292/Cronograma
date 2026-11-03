@@ -639,6 +639,8 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 | Teste HTTP antigo "não sobe o servidor" / espera para sempre | o laço de espera usava `GET /api/connect` sem chave, que passou a dar 401 (§129) | §129 | esperar em `/api/connect/openapi.json` (público, 200); ao mudar resposta pública, procurar `api/connect` nos `scripts/*.test.mjs` |
 
 ---
+| Teste HTTP antigo (`seguranca-altos`) falha depois de uma mudança que ele não cobria (lista sem transcrição, §138) e ainda quebra com "The server does not support SSL connections" | os testes HTTP não estão no `test:puro`, então ninguém os roda a cada entrega; e quem importa módulo do `server/` usa o `pool` do `db.js`, que sem `DATABASE_URL` tenta SSL | §145 | Ao mexer numa rota, rode também o teste HTTP da área com `BASE=http://localhost:3001 DATABASE_URL=postgres://localhost:5432/cronograma_dev`; teste velho que falha por mudança legítima é atualizado no mesmo commit |
+| Achado de "IP falsificável" sem prova | não dá para saber pelo código como o proxy monta `X-Real-IP`/`X-Forwarded-For` | §145 | Conferir em produção com cabeçalho forjado (rota de diagnóstico temporária) antes de mudar `clientIp`; na Railway os dois já vêm sobrescritos com o IP real |
 
 ## Não verificado / dúvidas
 - Não rodei nenhum script de `scripts/` nesta redação (somente leitura): as descrições vêm do cabeçalho de `docs/gerado/TESTES.md` e de `PROJECT_CONTEXT.md`.

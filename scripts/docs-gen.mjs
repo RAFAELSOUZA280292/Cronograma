@@ -58,7 +58,7 @@ function scanRoutes() {
     for (const m of text.matchAll(re)) {
       const ln = lineOf(text, m.index);
       const variable = m[1];
-      const prefix = byFileVar.get(`${fr}#${variable}`) ?? byFile.get(fr) ?? (fr.startsWith('server/crm/') ? '/api/crm' : '(sem prefixo conhecido)'); // subpastas do CRM são montadas por server/crm/routes.js
+      const prefix = byFileVar.get(`${fr}#${variable}`) ?? byFile.get(fr) ?? (fr === 'server/index.js' && variable === 'app' ? '' : null) ?? (fr.startsWith('server/crm/') ? '/api/crm' : '(sem prefixo conhecido)'); // subpastas do CRM são montadas por server/crm/routes.js
       const restLine = m[5] || '';
       const head = restLine.split(/async\s*\(|\(req|function\s*\(|wrap\(/)[0];
       const mws = head.split(',').map((s) => s.trim()).filter((s) => s && !/^[)}\]]+$/.test(s)).filter((s) => /^[A-Za-z_$][\w$.]*(\(.*\))?$/.test(s) && !/^(async|req|res|next)$/.test(s));
@@ -98,6 +98,7 @@ function genRoutes() {
     out.push('');
   }
   out.push('## Rotas que NÃO passam pelo roteador `/api`\n', '- `GET /d/…` (dados públicos do link de acompanhamento) e `/a/…`, `/acompanhamento/…` (páginas públicas; `X-Robots-Tag: noindex`) — ver `server/companyShare.js` e `server/index.js`.',
+    '- `POST /api/csp-report` (relatórios da CSP em modo só relatório, sem login; §145) — definida direto no `server/index.js`.',
     '- Arquivos estáticos do front (`dist/`) e o *fallback* de página única (SPA) ficam no fim do `server/index.js`; qualquer `/api/...` desconhecido responde 404 em JSON.');
   write('ROTAS.md', out.join('\n'));
   return routes.length;

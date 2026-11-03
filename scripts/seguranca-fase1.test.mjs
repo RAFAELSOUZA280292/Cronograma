@@ -1,4 +1,4 @@
-// Teste HTTP da varredura de segurança de 03/11/2026 (§145): cliente não gera nem usa chave pxk_; chave de base suspensa para;
+// Teste HTTP da varredura de segurança de 02/11/2026 (§145): cliente não gera nem usa chave pxk_; chave de base suspensa para;
 // link iCal com IP digitado direto recusado (e só equipe); link de agendamento some para dono vencido; cabeçalhos (sem X-Powered-By,
 // CSP só relatório). Contra servidor e Postgres LOCAIS, usuários e base temporários.
 //   BASE=http://localhost:3001 DATABASE_URL=postgres://localhost:5432/cronograma_dev node scripts/seguranca-fase1.test.mjs

@@ -10,8 +10,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 |---|---|---|
 | `server/accessLog.js` | 163 |  |
 | `server/activityDictionary.js` | 182 | Dicionário de atividades (2026-10-19, pedido do Rafael: "um mega dicionário de todas as atividades"; ver PROJECT_CONTEXT.md §80). |
-| `server/agenda.js` | 381 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
-| `server/agendaBooking.js` | 244 | Link público de agendamento (2026-11-02, noite; Rafael: "um link público para minha agenda… parceiros sem ler o nome do |
+| `server/agenda.js` | 383 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
+| `server/agendaBooking.js` | 248 | Link público de agendamento (2026-11-02, noite; Rafael: "um link público para minha agenda… parceiros sem ler o nome do |
 | `server/agendaForm.js` | 84 | Regras do formulário de compromisso da Agenda (criar e editar) e da proposta de novo horário — puras, testadas em |
 | `server/agendaTeam.js` | 220 | Agenda como a do Google, parte 2 (2026-11-02, noite; Rafael: "me inscrever na agenda dos meus funcionários e dos meus sócios", |
 | `server/answerCache.js` | 165 | Cache semântico de perguntas/respostas da RENATA (Fase 7, 2026-09-11) |
@@ -38,7 +38,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/companyCalendar.js` | 158 | "Reservar na agenda" (2026-10-19): bloco de agenda por atividade do cronograma, convidando só os e-mails que a equipe digita (equipe PRICETAX; cliente nunca é convidado). |
 | `server/companyCalendarPlan.js` | 101 | Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX. |
 | `server/companyShare.js` | 197 | Link público de acompanhamento da empresa (2026-10-19, pedido do Rafael): o cliente abre o link SEM login e vê Resumo, Cronograma (Gantt com subatividades) e Tabela, só leitura. |
-| `server/connect.js` | 977 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
+| `server/connect.js` | 979 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
 | `server/crm/activities.js` | 283 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/activityQueries.js` | 103 | CRM — consultas de atividades (Fase 3). Somente leitura. |
 | `server/crm/agendaFeed.js` | 23 | CRM — atividades em aberto do usuário como eventos da Agenda existente |
@@ -100,8 +100,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/googleCalendar.js` | 482 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleMail.js` | 299 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
-| `server/icalFeed.js` | 311 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
-| `server/index.js` | 210 |  |
+| `server/icalFeed.js` | 315 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
+| `server/index.js` | 227 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -119,7 +119,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/mail.js` | 690 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
 | `server/mailCompose.js` | 493 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
 | `server/mailLinks.js` | 453 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
-| `server/mailLinksCore.js` | 325 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
+| `server/mailLinksCore.js` | 329 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
 | `server/mailLinksSchema.js` | 65 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Só aditivo; chamado por initDb(). O índice guarda SÓ metadados (ids, assunto, |
 | `server/materialText.js` | 152 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
 | `server/meetingEdit.js` | 172 | Correção de uma reunião já registrada pela API de conectividade (§116e, escopo `meetings_edit`). Função pura sobre o `data` do projeto: |
@@ -360,7 +360,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/mail/MailFrame.jsx` | 34 | Corpo de e-mail desenhado num iframe sem script (sandbox), com o HTML já higienizado no servidor. Usado na leitura, |
 | `src/mail/MailLinks.jsx` | 344 | E-mail ligado ao CRM e às Empresas (§130). Selo da conversa ("Cliente · KUHN", "Lead · OKUBO · Proposta", "Parceiro · Tróia"), |
 | `src/mail/MailScreen.jsx` | 1047 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
-| `src/mail/SignatureDialog.jsx` | 134 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
+| `src/mail/SignatureDialog.jsx` | 142 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
 | `src/mail/mail.css` | 302 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
 | `src/mail/mailImage.js` | 94 | Imagens da Caixa de e-mail (pacote de personalização, 2026-11-02): imagem colada/arrastada no corpo e imagem própria da |
 | `src/mail/mailIntent.js` | 22 | Pedidos de outras telas para a Caixa de e-mail (sem prop drilling): abrir uma conversa (§130) ou escrever para alguém já |

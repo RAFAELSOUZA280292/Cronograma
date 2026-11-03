@@ -22,10 +22,10 @@ Não há fila externa (Redis etc.): tudo roda **dentro do processo do servidor**
 
 | Tipo | Onde | Intervalo | O que faz (trecho) |
 |---|---|---|---|
-| setInterval | `server/agendaBooking.js:149` |  | `() => { const t = Date.now(` |
+| setInterval | `server/agendaBooking.js:153` |  | `() => { const t = Date.now(` |
 | setInterval | `server/assistant.js:18` |  | `() => { const now = Date.now(` |
 | setInterval | `server/briefing.js:94` | INTERVAL_MS | `tick` |
-| setInterval | `server/connect.js:135` |  | `() => { const now = Date.now(` |
+| setInterval | `server/connect.js:137` |  | `() => { const now = Date.now(` |
 | setInterval | `server/crm/scheduler.js:54` | INTERVAL_MS | `tick` |
 | setInterval | `server/mailLinks.js:158` | 20 * 60 * 1000 | `run` |
 | setInterval | `server/projectVersions.js:192` | 24 * 3600 * 1000 | `run` |

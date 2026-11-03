@@ -62,19 +62,13 @@ const distDir = path.join(__dirname, '..', 'dist');
 
 const app = express();
 app.disable('x-powered-by');
-// CSP em modo SÓ RELATÓRIO (2026-11-03): nada é bloqueado; o navegador avisa em /api/csp-report o que a regra barraria. Depois de
+// CSP em modo SÓ RELATÓRIO (2026-11-02): nada é bloqueado; o navegador avisa em /api/csp-report o que a regra barraria. Depois de
 // alguns dias de log limpo, troca-se para Content-Security-Policy (bloqueando). Imagens https de qualquer lugar (e-mail, prévia de link).
 const CSP = [
   "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:", "media-src 'self' data: blob: https:", "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com", "frame-src 'self' blob: data: https:", "worker-src 'self' blob:",
   "object-src 'none'", "base-uri 'self'", "frame-ancestors 'self'", 'report-uri /api/csp-report',
 ].join('; ');
-// TEMPORÁRIO (2026-11-03, diagnóstico do M4): mostra a quem chama só os cabeçalhos de IP da PRÓPRIA requisição, para conferir o que a
-// Railway monta (X-Real-IP / X-Forwarded-For) antes de confiar neles. Sai no deploy seguinte.
-app.get('/api/ip-check', (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.json({ xRealIp: req.headers['x-real-ip'] || null, xForwardedFor: req.headers['x-forwarded-for'] || null, remote: (req.socket && req.socket.remoteAddress) || null });
-});
 const cspSeen = new Set();
 app.post('/api/csp-report', express.json({ type: ['application/csp-report', 'application/reports+json', 'application/json'], limit: '20kb' }), (req, res) => {
   const r = (req.body && (req.body['csp-report'] || (Array.isArray(req.body) && req.body[0] && req.body[0].body))) || {};
