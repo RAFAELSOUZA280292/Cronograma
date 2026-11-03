@@ -11,6 +11,7 @@ import { todayInSp } from '../../widgetSummary.js';
 import { notifyTodoChanges } from '../../todoNotifications.js';
 import { callInternal } from '../internalCall.js';
 import { searchProjectMemory } from '../../memoryRetrieval.js';
+import { linkToActivity, linkToMeeting } from '../../../shared/panelLinks.js';
 
 const uid = (p) => `${p}-${crypto.randomBytes(5).toString('base64url')}`;
 const alive = (a) => (Array.isArray(a) ? a.filter((x) => x && !x.deleted) : []);
@@ -94,13 +95,13 @@ export function registerEmpresas(registry) {
       const subs = new Map(alive(d.activities).flatMap((a) => alive(a.subactivities).map((s) => [s.id, s])));
       let acts = alive(d.activities).map((a) => {
         const sl = alive(a.subactivities);
-        const base = { id: a.id, titulo: a.title, status: a.status, inicio: a.date || '', fim: a.endDate || a.date || '', responsavel: a.responsible || '', fase: pn[a.phase] || '', prioridade: a.priority || '', atrasada: a.status !== 'concluido' && !!(a.endDate || a.date) && (a.endDate || a.date) < today, subatividades: sl.length, subatividadesAbertas: sl.filter((s) => !s.done && !s.skipped).length };
+        const base = { id: a.id, link: linkToActivity(r.id, a.id), titulo: a.title, status: a.status, inicio: a.date || '', fim: a.endDate || a.date || '', responsavel: a.responsible || '', fase: pn[a.phase] || '', prioridade: a.priority || '', atrasada: a.status !== 'concluido' && !!(a.endDate || a.date) && (a.endDate || a.date) < today, subatividades: sl.length, subatividadesAbertas: sl.filter((s) => !s.done && !s.skipped).length };
         if (i.atividadeId && a.id === i.atividadeId) base.detalheSubatividades = sl.map((s) => ({ id: s.id, titulo: s.title, feita: !!s.done, pulada: !!s.skipped, data: s.date || '', responsavel: s.responsible || '', tipo: s.kind || 'trabalho', ...(Array.isArray(s.predecessors) && s.predecessors.length ? { predecessoras: s.predecessors.map((pid) => ({ id: pid, titulo: (subs.get(pid) || {}).title || '(removida)', data: (subs.get(pid) || {}).date || '' })) } : {}) }));
         return base;
       });
       if (i.somenteAtrasadas) acts = acts.filter((a) => a.atrasada);
       const total = acts.length;
-      const meetings = alive(d.meetings).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map((m) => ({ id: m.id, titulo: m.title, data: m.date, hora: m.time || '', tarefasAbertas: alive(m.actionItems).filter((t) => !['concluida', 'nao-relevante'].includes(t.status)).length, tarefasTotal: alive(m.actionItems).length }));
+      const meetings = alive(d.meetings).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map((m) => ({ id: m.id, link: linkToMeeting(r.id, m.id), titulo: m.title, data: m.date, hora: m.time || '', tarefasAbertas: alive(m.actionItems).filter((t) => !['concluida', 'nao-relevante'].includes(t.status)).length, tarefasTotal: alive(m.actionItems).length }));
       // ordem das chaves importa: o que é curto vem primeiro, as atividades por último (se algo for cortado por tamanho, são elas)
       return { status: 200, json: { hoje: today, empresa: name(d), status: (d.company && d.company.status) || '', equipe: alive(d.team).map((t) => t.name), fases: phases, reunioes: meetings, totalAtividades: total, atividades: acts.slice(0, i.limit || 60) } };
     } });
@@ -170,7 +171,7 @@ export function registerEmpresas(registry) {
           if (i.responsavel && !norm(t.responsible).includes(norm(i.responsavel))) continue;
           const late = open && !!t.dueDate && t.dueDate < today;
           if (i.somenteVencidas && !late) continue;
-          out.push({ id: t.id, titulo: clip(t.title, 120), empresa: name(r.data), empresaId: r.id, reuniao: clip(m.title, 60), reuniaoId: m.id, responsavel: t.responsible || '', prazo: t.dueDate || '', status: t.status, vencida: late });
+          out.push({ id: t.id, link: linkToMeeting(r.id, m.id, t.id), titulo: clip(t.title, 120), empresa: name(r.data), empresaId: r.id, reuniao: clip(m.title, 60), reuniaoId: m.id, responsavel: t.responsible || '', prazo: t.dueDate || '', status: t.status, vencida: late });
         }
       }
       out.sort((a, b) => (b.vencida - a.vencida) || (a.prazo || '9999').localeCompare(b.prazo || '9999'));

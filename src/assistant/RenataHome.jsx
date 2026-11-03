@@ -9,6 +9,7 @@ import ChatExport, { CHAT_EXPORT_CSS, CopyMessageButton } from './ChatExport.jsx
 import { Drawer } from '../ui/dialog.jsx';
 import { fromSimpleMessages } from './chatExport.js';
 import { Button } from '../ui/index.jsx';
+import RichAnswer, { RICH_ANSWER_CSS, openPanelLink } from '../renata/RichAnswer.jsx';
 
 const SUGGESTIONS = [
   'O que preciso fazer hoje?',
@@ -38,21 +39,6 @@ const CSS = `
 .rnh-compose textarea:focus { outline: none; border-color: var(--ui-accent, #F5C400); }
 .rnh-err { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(226,87,76,.4); background: var(--ui-danger-bg); font-size: 13px; color: var(--text-1); }
 `;
-
-// Formatação mínima da resposta: parágrafos, listas com "- " e **negrito** (nada de HTML vindo do modelo: tudo vira nó React).
-function inline(text) {
-  return String(text).split(/(\*\*[^*]+\*\*)/g).map((part, i) => (/^\*\*[^*]+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : part));
-}
-function Formatted({ text }) {
-  const blocks = String(text || '').split(/\n{2,}/);
-  return blocks.map((b, i) => {
-    const lines = b.split('\n').filter((l) => l.trim());
-    if (lines.length && lines.every((l) => /^\s*[-•*]\s+/.test(l))) {
-      return <ul key={i}>{lines.map((l, k) => <li key={k}>{inline(l.replace(/^\s*[-•*]\s+/, ''))}</li>)}</ul>;
-    }
-    return <p key={i}>{lines.map((l, k) => <React.Fragment key={k}>{k > 0 && <br />}{inline(l)}</React.Fragment>)}</p>;
-  });
-}
 
 const storeKey = (userId) => `renata-home:${userId || 'anon'}`;
 function loadChat(userId) {
@@ -116,7 +102,7 @@ export default function RenataHome({ userId, userName, canSweep, projects, initi
 
   return (
     <Drawer title="RENATA" subtitle="Assistente da PRICETAX — responde com o que você já vê e com o conhecimento da casa." onClose={onClose} footer={footer} label="RENATA, assistente da PRICETAX">
-      <style>{CSS}</style>
+      <style>{CSS}{RICH_ANSWER_CSS}</style>
       <style>{CHAT_EXPORT_CSS}</style>
       <div className="rnh">
         {msgs.length === 0 && (
@@ -132,7 +118,7 @@ export default function RenataHome({ userId, userName, canSweep, projects, initi
         {msgs.length > 0 && <ChatExport getData={() => ({ title: 'RENATA — conversa', subtitle: 'Assistente geral da PRICETAX', messages: fromSimpleMessages(msgs) })} />}
         {msgs.map((m, i) => (
           <div key={i} className={`cx-wrap ${m.role === 'user' ? 'user' : 'bot'}`}>
-            <div className={`rnh-msg ${m.role === 'user' ? 'user' : 'bot'}`}>{m.role === 'user' ? m.text : <Formatted text={m.text} />}</div>
+            <div className={`rnh-msg ${m.role === 'user' ? 'user' : 'bot'}`}>{m.role === 'user' ? m.text : <RichAnswer text={m.text} onLink={(href) => { openPanelLink(href); if (onClose) onClose(); }} />}</div>
             <CopyMessageButton message={fromSimpleMessages([m])[0]} />
           </div>
         ))}

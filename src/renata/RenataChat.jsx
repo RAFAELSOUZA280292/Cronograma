@@ -10,6 +10,7 @@ import { fromSimpleMessages } from '../assistant/chatExport.js';
 import { Button } from '../ui/index.jsx';
 import { notify, askConfirm } from '../ui/dialogs.jsx';
 import { getScreenContext } from './screenContext.js';
+import RichAnswer, { RICH_ANSWER_CSS, openPanelLink } from './RichAnswer.jsx';
 
 const CSS = `
 .rnc { display:flex; flex-direction:column; gap:var(--sp-3); font-family:'Inter', sans-serif; }
@@ -77,14 +78,6 @@ const CSS = `
 .rnc-log-item pre { margin:6px 0 0; padding:8px; background:var(--bg-1); border-radius:var(--r-md); font-size:11px; overflow:auto; max-height:180px; color:var(--text-3); white-space:pre-wrap; word-break:break-word; }
 `;
 
-function inline(text) { return String(text).split(/(\*\*[^*]+\*\*)/g).map((part, i) => (/^\*\*[^*]+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : part)); }
-function Formatted({ text }) {
-  return String(text || '').split(/\n{2,}/).map((b, i) => {
-    const lines = b.split('\n').filter((l) => l.trim());
-    if (lines.length && lines.every((l) => /^\s*[-•*]\s+/.test(l))) return <ul key={i}>{lines.map((l, k) => <li key={k}>{inline(l.replace(/^\s*[-•*]\s+/, ''))}</li>)}</ul>;
-    return <p key={i}>{lines.map((l, k) => <React.Fragment key={k}>{k > 0 && <br />}{inline(l)}</React.Fragment>)}</p>;
-  });
-}
 
 const STATUS_PT = { success: 'feito', failed: 'não deu certo', denied: 'sem permissão', cancelled: 'cancelado', partial: 'parcial', pending: 'aguardando você', unknown: '' };
 const BY_MODULE = {
@@ -339,7 +332,7 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
 
   return (
     <Drawer above title="RENATA" subtitle="Colaboradora digital: você pede, ela executa no sistema, com as suas permissões, e deixa tudo registrado." onClose={onClose} footer={footer} label="RENATA, colaboradora digital da PRICETAX">
-      <style>{CSS}</style>
+      <style>{CSS}{RICH_ANSWER_CSS}</style>
       <style>{CHAT_EXPORT_CSS}</style>
       <div className="rnc">
         <div className="rnc-tabs" role="tablist" aria-label="Seções da RENATA">
@@ -367,7 +360,7 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
             {mergeReads(msgs).map((m, i) => (
               m.role === 'user'
                 ? <React.Fragment key={i}><div className="cx-wrap user"><div className="rnc-msg user">{m.text}</div><CopyMessageButton message={fromSimpleMessages([m])[0]} /></div>{m.at && <div className="rnc-time user" title={`Enviada em ${fmtBr(m.at)}`}>{fmtBr(m.at)}</div>}</React.Fragment>
-                : (<React.Fragment key={i}>{m.text && <div className="cx-wrap bot"><div className="rnc-msg bot"><Formatted text={m.text} /></div><CopyMessageButton message={fromSimpleMessages([{ ...m, steps: [] }])[0]} /></div>}{m.text && m.at && <div className="rnc-time bot" title={`Respondida em ${fmtBr(m.at)}`}>{fmtBr(m.at)}</div>}<Steps steps={m.steps} onUndo={undo} busyUndo={busyUndo} /></React.Fragment>)
+                : (<React.Fragment key={i}>{m.text && <div className="cx-wrap bot"><div className="rnc-msg bot"><RichAnswer text={m.text} onLink={(href) => { openPanelLink(href); if (onClose) onClose(); }} /></div><CopyMessageButton message={fromSimpleMessages([{ ...m, steps: [] }])[0]} /></div>}{m.text && m.at && <div className="rnc-time bot" title={`Respondida em ${fmtBr(m.at)}`}>{fmtBr(m.at)}</div>}<Steps steps={m.steps} onUndo={undo} busyUndo={busyUndo} /></React.Fragment>)
             ))}
             {pending.map((p) => <PendingCard key={p.actionId} p={p} onDecide={decide} busy={busy} />)}
             {busy && <div className="rnc-think" role="status"><Loader2 size={14} className="rnc-spin" /> A RENATA está trabalhando…</div>}

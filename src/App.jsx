@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { parseMailto, requestCompose } from './mail/mailIntent.js';
+import { parsePanelLink } from '../shared/panelLinks.js';
 import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
 import { fitPeriods } from '../shared/period.js';
@@ -1029,6 +1030,37 @@ function AppScreens({ shellRef, bump }) {
     document.addEventListener('click', onMailto, true);
     return () => document.removeEventListener('click', onMailto, true);
   }, []);
+  // Link interno clicado numa resposta da RENATA (src/renata/RichAnswer.jsx → `pt:open-link`): abre a empresa, a atividade, a reunião,
+  // a tarefa de reunião ou o negócio ali mesmo, sem recarregar. A mesma leitura vale para o endereço aberto direto (deep link abaixo).
+  const openPanelLinkRef = useRef(null);
+  openPanelLinkRef.current = (target) => {
+    if (!target) return;
+    if (target.kind === 'deal' || target.kind === 'crmCompany') {
+      if (!canOpenMode('crm', currentUserRef.current)) { notify('Você não tem acesso ao CRM.', { tone: 'error' }); return; }
+      goToWorkspace('crm');
+      setPendingCrmOpen(target.kind === 'deal' ? { dealId: target.dealId } : { companyId: target.companyId });
+      return;
+    }
+    if (target.kind === 'module') { if (canOpenMode(target.mode, currentUserRef.current)) goToWorkspace(target.mode); return; }
+    if (!canOpenMode('company', currentUserRef.current)) { notify('Você não tem acesso às Empresas.', { tone: 'error' }); return; }
+    const pr = projects.find((p) => p.id === target.pid);
+    if (!pr) { notify('Não encontrei esta empresa (ou você não tem acesso a ela).', { tone: 'error' }); return; }
+    openCompanyWorkspace([target.pid]);
+    if (target.kind === 'activity') {
+      if (!(pr.activities || []).some((a) => a.id === target.activityId && !a.deleted)) { notify('Esta atividade não existe mais no cronograma.', { tone: 'error' }); return; }
+      openActivityDetail(target.pid, target.activityId);
+    } else if (target.kind === 'meeting' || target.kind === 'todo') {
+      if (!(pr.meetings || []).some((m) => m.id === target.meetingId && !m.deleted)) { notify('Esta reunião não existe mais.', { tone: 'error' }); return; }
+      setView('meetings');
+      if (target.kind === 'todo') setPendingTodoOpen({ pid: target.pid, meetingId: target.meetingId, itemId: target.todoId });
+      openMeetingDetail(target.pid, target.meetingId);
+    }
+  };
+  useEffect(() => {
+    const onLink = (e) => { const t = parsePanelLink(e && e.detail && e.detail.href); if (t && openPanelLinkRef.current) openPanelLinkRef.current(t); };
+    window.addEventListener('pt:open-link', onLink);
+    return () => window.removeEventListener('pt:open-link', onLink);
+  }, []);
   useEffect(() => {
     try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
     function onPopState(e) {
@@ -1438,6 +1470,9 @@ function AppScreens({ shellRef, bump }) {
           const q = new URLSearchParams(window.location.search);
           const okId = (v) => /^[\w-]{1,80}$/.test(v || '');
           if (okId(q.get('cofre'))) pendingVaultOpen.current = { pid: q.get('cofre'), item: okId(q.get('item')) ? q.get('item') : '' };
+          // Link da RENATA colado no navegador (/empresas?empresa=…&atividade=…|reuniao=…&tarefa=…): abre depois que as empresas carregarem.
+          const deep = parsePanelLink(window.location.pathname + window.location.search);
+          if (deep && deep.kind !== 'module') pendingDeepOpen.current = deep;
         }
         if (mode === 'crm') {
           // Link vindo da agenda do Google (…/crm?negocio=ID ou ?empresa=ID): abre direto o negócio ou a empresa.
@@ -1469,12 +1504,16 @@ function AppScreens({ shellRef, bump }) {
   }, [projectsLoaded, currentUser?.id]);
   const restoreCompanyPending = useRef(false);
   const pendingVaultOpen = useRef(null);
+  const pendingDeepOpen = useRef(null);
   const [vaultFocus, setVaultFocus] = useState(null);
   useEffect(() => {
     if (!restoreCompanyPending.current || !projectsLoaded || !currentUser || workspaceMode !== 'company') return;
     restoreCompanyPending.current = false;
     const pv = pendingVaultOpen.current;
     pendingVaultOpen.current = null;
+    const deep = pendingDeepOpen.current;
+    pendingDeepOpen.current = null;
+    if (deep && openPanelLinkRef.current) { openPanelLinkRef.current(deep); return; }
     if (pv) {
       const staff = currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax';
       if (staff && projects.some((p) => p.id === pv.pid)) { confirmCompanySelection([pv.pid]); setView('cofre'); setVaultFocus({ ...pv, n: Date.now() }); return; }

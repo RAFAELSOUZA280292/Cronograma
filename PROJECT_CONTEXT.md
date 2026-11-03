@@ -69,6 +69,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Link público de agendamento** (`/agendar/:código`): parceiro vê só livre/ocupado e marca na agenda da pessoa, com e-mails obrigatórios e Meet escolhido (§139).
   - **Aba E-mails da empresa** acha as conversas sem vínculo com o CRM (mesmo CNPJ ou domínio parecido com o nome) (§139).
   - **RENATA responde pelo parecer mais recente** (sigla de tributo na busca; 29/2026 prevalece sobre 25/2026) (§140).
+  - **Respostas da RENATA visuais e clicáveis**: cada pendência é um link que abre a atividade, a reunião ou a tarefa (§141).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9179,3 +9180,10 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Causa 2 — nada dizia que o mais novo substitui o antigo:** os escolhidos agora saem ordenados pelo número/ano (`parecerOrder`, "Nº 29/2026" > "Nº 25/2026") e a RENATA ganhou a regra **10a** (pareceres primeiro para tema tributário, buscar com a sigla; mesmo assunto → vale o mais recente, citar número e dizer que atualizou o anterior; nunca chamar o número oficial de "estimativa"). Mesma regra no texto do assistente geral (`assistantGeneral.js`).
 - Testes: `scripts/pareceres-busca.test.mjs` (CBS acha 29 antes do 25; sigla IBS; temas raros seguem; pergunta sem tema não puxa parecer; ordem). Avaliação da RENATA 53/53. **Confirmado pelo Rafael em produção** ("Veio certo", 02/11 ~22h): a pergunta da CBS passou a responder pelo 29/2026.
 - Pendente se ainda falhar: o estudo grava a data de **envio** do PDF (`source_date`), não a "posição em" do parecer; e o fato antigo (25/2026) continua ativo — a substituição é por regra da RENATA, não por status no banco.
+
+## 141. Respostas da RENATA visuais e clicáveis (2026-11-02, noite; Rafael, print das pendências da KUHN: "a resposta é boa, mas falta estar mais bem formatada e visual; falta a possibilidade de poder clicar e ir até as pendências")
+
+- **Links internos** (`shared/panelLinks.js`): `/empresas?empresa=<id>&atividade=<id>`, `…&reuniao=<id>[&tarefa=<id>]`, `/crm?negocio=<uuid>` / `?empresa=<uuid>` e módulos (`/agenda`, `/email`…). `parsePanelLink` aceita só caminho do próprio painel (nada de `http://`, `//host`, `javascript:` ou id inválido). As ferramentas `empresa_ver_cronograma` (atividades e reuniões) e `tarefas_reuniao_listar` devolvem `link` em cada item.
+- **Regra 12a da RENATA** (`agent.js`): item listado vira `[título](link)` com o campo da ferramenta (negócio: `/crm?negocio=`), blocos com `### `, um item por linha com responsável e data, abertura com resumo e no máximo uma sugestão no fim; nunca link inventado ou de fora.
+- **Tela** (`src/renata/RichAnswer.jsx`, usado no painel lateral `RenataChat` e na tela inicial `RenataHome`): títulos de bloco com marca amarela, itens em cartões, listas numeradas, **negrito**, "venceu dd/mm" / "atrasad…" / "vencid…" em vermelho e o link vira botão; clicar dispara `pt:open-link` e fecha o chat. `App.jsx` (`openPanelLinkRef`) abre a empresa e a atividade, a reunião (aba Reuniões) ou a tarefa da reunião, o negócio ou a empresa do CRM, ou o módulo; registro apagado ou sem acesso → aviso. O mesmo endereço colado no navegador abre depois de carregar as empresas (`pendingDeepOpen`).
+- Testes: `scripts/panel-links.test.mjs`; no navegador local, resposta simulada com links: atividade e reunião abriram sem recarregar, link de fora ficou texto, endereço direto abriu a atividade. Suíte 59/59; fluxos 15/15. Não visto com a IA real (pergunta do Rafael depois do deploy).
