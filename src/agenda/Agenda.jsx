@@ -200,8 +200,11 @@ export default function AgendaScreen({
     // Sem webhook do Google (exigiria endpoint público + renovação a cada
     // 7 dias) — like 2026-08: poll simples enquanto a tela estiver aberta
     // é o que mantém "sincronizado" sem esse esforço de infra a mais.
-    const t = setInterval(load, 60000);
-    return () => { cancelled = true; clearInterval(t); };
+    // Aba escondida não consulta (Google + CRM a cada minuto por pessoa); ao voltar, atualiza na hora.
+    const t = setInterval(() => { if (!document.hidden) load(); }, 60000);
+    const onVisible = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey, reloadTick]);
 

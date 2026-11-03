@@ -17,9 +17,9 @@ export function MetricsTab() {
 
   useEffect(() => {
     apiGet('/api/knowledge/metrics').then((res) => { setMetrics(res); setLoaded(true); }).catch(() => setLoaded(true));
-    apiGet('/api/projects').then((res) => {
+    apiGet('/api/projects/lite').then((res) => {
       const map = {};
-      (res.projects || []).forEach((p) => { map[p.id] = (p.company && (p.company.nomeFantasia || p.company.name)) || p.id; });
+      (res.projects || []).forEach((p) => { map[p.id] = p.name || p.id; });
       setProjectNames(map);
     }).catch(() => {});
   }, []);

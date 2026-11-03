@@ -441,8 +441,10 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda, personalBoard
       }
     }
     load();
-    const t = setInterval(load, 5 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(t); };
+    const t = setInterval(() => { if (!document.hidden) load(); }, 5 * 60 * 1000);
+    const onVisible = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
   }, [dayKey, reloadTick]);
 
   function dismiss() {

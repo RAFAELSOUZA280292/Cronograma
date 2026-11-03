@@ -70,30 +70,44 @@ export async function runTodoReminders({ now = new Date(), minHour = 7, maxDaysL
   if (hour < minHour) return 0;
   const today = todayInSp(now);
   const oldest = new Date(new Date(`${today}T12:00:00Z`).getTime() - maxDaysLate * 86400000).toISOString().slice(0, 10);
-  const { rows: projects } = await pool.query('SELECT id, org_id, data FROM projects');
-  let created = 0;
-  const usersByOrg = new Map();
+  // Só o que o lembrete usa: nome da empresa e, de cada reunião, título e tarefas (as transcrições ficam no banco).
+  const { rows: projects } = await pool.query(`
+    SELECT id, org_id, jsonb_build_object('company', jsonb_build_object('name', data->'company'->'name', 'nomeFantasia', data->'company'->'nomeFantasia'),
+      'meetings', (SELECT jsonb_agg(jsonb_build_object('id', m->'id', 'title', m->'title', 'deleted', m->'deleted', 'actionItems', m->'actionItems'))
+                   FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'meetings') = 'array' THEN data->'meetings' ELSE '[]'::jsonb END) m)) AS data
+    FROM projects`);
+  const due = [];
   for (const p of projects) {
     for (const { meeting, item } of liveItems(p.data)) {
       if (!item.dueDate || item.dueDate >= today || item.dueDate < oldest || DONE.has(item.status) || !item.responsible) continue;
-      if (!usersByOrg.has(p.org_id)) {
-        const { rows } = await pool.query(`SELECT id, name FROM users WHERE org_id=$1 AND blocked=false AND role <> 'cliente'`, [p.org_id]);
-        usersByOrg.set(p.org_id, new Map(rows.map((u) => [key(u.name), u])));
-      }
-      const u = usersByOrg.get(p.org_id).get(key(item.responsible));
-      if (!u) continue;
-      const { rows: seen } = await pool.query(
-        `SELECT 1 FROM notifications WHERE user_id=$1 AND type='todo_overdue' AND target->>'itemId'=$2 LIMIT 1`, [u.id, item.id]);
-      if (seen.length) continue;
-      const [y, m, d] = item.dueDate.split('-');
-      await createNotification(pool, {
-        orgId: p.org_id, userId: u.id, type: 'todo_overdue', actorName: '',
-        title: `${item.title || 'Tarefa'} — ${(p.data && p.data.company && (p.data.company.nomeFantasia || p.data.company.name)) || 'Projeto'}`,
-        body: `Tarefa da reunião "${meeting.title || ''}" venceu em ${d}/${m}/${y} e ainda está aberta.`,
-        target: { kind: 'todo', projectId: p.id, meetingId: meeting.id, itemId: item.id },
-      });
-      created += 1;
+      due.push({ p, meeting, item });
     }
+  }
+  if (!due.length) return 0;
+  // Uma consulta para as pessoas e uma para "já avisei?" (eram uma por empresa e uma por tarefa, a cada 30 min).
+  const orgIds = [...new Set(due.map((x) => x.p.org_id))];
+  const { rows: users } = await pool.query(`SELECT id, name, org_id FROM users WHERE org_id = ANY($1) AND blocked=false AND role <> 'cliente'`, [orgIds]);
+  const usersByOrg = new Map(orgIds.map((o) => [o, new Map()]));
+  for (const u of users) usersByOrg.get(u.org_id).set(key(u.name), u);
+  const todo = due.map((x) => ({ ...x, u: usersByOrg.get(x.p.org_id).get(key(x.item.responsible)) })).filter((x) => x.u);
+  if (!todo.length) return 0;
+  const { rows: seenRows } = await pool.query(
+    `SELECT user_id, target->>'itemId' AS item_id FROM notifications WHERE type='todo_overdue' AND user_id = ANY($1) AND target->>'itemId' = ANY($2)`,
+    [[...new Set(todo.map((x) => x.u.id))], [...new Set(todo.map((x) => String(x.item.id)))]]);
+  const seen = new Set(seenRows.map((r) => `${r.user_id}|${r.item_id}`));
+  let created = 0;
+  for (const { p, meeting, item, u } of todo) {
+    const k = `${u.id}|${item.id}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const [y, m, d] = item.dueDate.split('-');
+    await createNotification(pool, {
+      orgId: p.org_id, userId: u.id, type: 'todo_overdue', actorName: '',
+      title: `${item.title || 'Tarefa'} — ${(p.data && p.data.company && (p.data.company.nomeFantasia || p.data.company.name)) || 'Projeto'}`,
+      body: `Tarefa da reunião "${meeting.title || ''}" venceu em ${d}/${m}/${y} e ainda está aberta.`,
+      target: { kind: 'todo', projectId: p.id, meetingId: meeting.id, itemId: item.id },
+    });
+    created += 1;
   }
   return created;
 }

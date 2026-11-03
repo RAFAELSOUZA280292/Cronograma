@@ -402,6 +402,8 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, read, created_at DESC)`);
+  // Lembrete de tarefa vencida (server/todoNotifications.js) confere "já avisei?" por (pessoa, tarefa) a cada 30 min.
+  await pool.query(`CREATE INDEX IF NOT EXISTS notifications_todo_overdue_idx ON notifications(user_id, (target->>'itemId')) WHERE type='todo_overdue'`);
 
   // Notificações push (2026-10-17): um registro por aparelho/navegador inscrito. Relacional (e não JSONB) porque a chave natural é o `endpoint`
   // (único no mundo), a consulta é por usuário e o envio apaga linha a linha quando o serviço de push responde 404/410.

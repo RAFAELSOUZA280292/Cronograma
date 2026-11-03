@@ -85,7 +85,7 @@ const hasAttachmentOf = (t) => ((t && t.messages) || []).some((m) => walkParts(m
 // Grava/atualiza o índice (só metadados) das conversas que a pessoa acabou de ver. Nunca bloqueia a resposta da caixa.
 export async function indexThreads(user, rawThreads) {
   if (!user || !user.orgId || !rawThreads.length) return 0;
-  let n = 0;
+  const rows = new Map(); // uma linha por conversa: a mesma conversa duas vezes no INSERT quebraria o ON CONFLICT
   for (const t of rawThreads) {
     if (!t || !t.id) continue;
     const labels = new Set((t.messages || []).flatMap((m) => m.labelIds || []));
@@ -93,16 +93,20 @@ export async function indexThreads(user, rawThreads) {
     const f = threadFacts(t, { headerMap, parseAddressList, hasAttachment: hasAttachmentOf(t) });
     const keys = [...new Set(f.participants.map((p) => keyOf(p.email)).filter(Boolean))];
     if (!keys.length) continue;
-    await pool.query(
-      `INSERT INTO mail_thread_index (org_id, user_id, thread_id, conv_key, subject, participants, keys, team_replied, has_attachment, msg_count, first_at, last_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
-       ON CONFLICT (user_id, thread_id) DO UPDATE SET conv_key=EXCLUDED.conv_key, subject=EXCLUDED.subject, participants=EXCLUDED.participants, keys=EXCLUDED.keys,
-         team_replied=EXCLUDED.team_replied, has_attachment=EXCLUDED.has_attachment OR mail_thread_index.has_attachment, msg_count=EXCLUDED.msg_count,
-         first_at=LEAST(EXCLUDED.first_at, mail_thread_index.first_at), last_at=GREATEST(EXCLUDED.last_at, mail_thread_index.last_at), updated_at=now()`,
-      [user.orgId, user.id, t.id, f.convKey, f.subject, JSON.stringify(f.participants), keys, f.teamReplied, f.hasAttachment, f.msgCount, f.firstAt, f.lastAt]);
-    n += 1;
+    rows.set(t.id, [t.id, f.convKey, f.subject, JSON.stringify(f.participants), keys, f.teamReplied, f.hasAttachment, f.msgCount, f.firstAt, f.lastAt]);
   }
-  return n;
+  if (!rows.size) return 0;
+  // Um INSERT só para a página inteira (eram até 30 em série a cada abertura da lista).
+  const params = [user.orgId, user.id];
+  const values = [...rows.values()].map((r) => `($1,$2,${r.map((v) => { params.push(v); return `$${params.length}`; }).join(',')}, now())`);
+  await pool.query(
+    `INSERT INTO mail_thread_index (org_id, user_id, thread_id, conv_key, subject, participants, keys, team_replied, has_attachment, msg_count, first_at, last_at, updated_at)
+     VALUES ${values.join(',')}
+     ON CONFLICT (user_id, thread_id) DO UPDATE SET conv_key=EXCLUDED.conv_key, subject=EXCLUDED.subject, participants=EXCLUDED.participants, keys=EXCLUDED.keys,
+       team_replied=EXCLUDED.team_replied, has_attachment=EXCLUDED.has_attachment OR mail_thread_index.has_attachment, msg_count=EXCLUDED.msg_count,
+       first_at=LEAST(EXCLUDED.first_at, mail_thread_index.first_at), last_at=GREATEST(EXCLUDED.last_at, mail_thread_index.last_at), updated_at=now()`,
+    params);
+  return rows.size;
 }
 export function indexInBackground(user, rawThreads) {
   indexThreads(user, rawThreads.filter(Boolean)).catch((e) => console.error('E-mail × CRM: falha ao indexar', String(e && e.message).slice(0, 200)));

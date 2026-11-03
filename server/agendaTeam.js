@@ -65,18 +65,18 @@ export function busyToEvents(sub, busy) {
 const isScopeError = (e) => /insufficient|scope/i.test(String(e && e.message)) || (e && e.code === 403 && /insufficientPermissions|ACCESS_TOKEN_SCOPE/i.test(JSON.stringify((e.response && e.response.data) || {})));
 const apiDisabled = (e) => /has not been used|is disabled|SERVICE_DISABLED/i.test(String(e && e.message) + JSON.stringify((e && e.response && e.response.data) || {}));
 
-async function clientOf(userId) {
-  const client = await getAuthedClientForUser(userId);
+async function clientOf(userId, authed) {
+  const client = authed || await getAuthedClientForUser(userId);
   if (!client) throw Object.assign(new Error('Conecte o seu Google (Meu perfil › Agenda) para usar a agenda do painel.'), { status: 409 });
   return client;
 }
 
 // Agendas de colegas no período. Para cada um: detalhes (events.list) ou, se o Google só libera livre/ocupado, freebusy.
 // Devolve { events, calendars: [{ email, status: 'details'|'busy'|'none'|'scope'|'error', message }] }. Um colega com erro não derruba os outros.
-export async function teamEvents(userId, subs, startISO, endISO) {
+export async function teamEvents(userId, subs, startISO, endISO, authed) {
   const list = (subs || []).filter((s) => s.show !== false);
   if (!list.length) return { events: [], calendars: [] };
-  const client = await clientOf(userId);
+  const client = await clientOf(userId, authed);
   const calendar = google.calendar({ version: 'v3', auth: client });
   const events = []; const calendars = [];
   const needBusy = [];
@@ -165,8 +165,8 @@ export function mapTask(t) {
   const due = t.due ? String(t.due).slice(0, 10) : null;
   return { id: `gtask-${t.id}`, source: 'gtask', title: t.title || '(sem título)', description: t.notes || '', start: due, end: due, allDay: true, status: 'confirmed', done: t.status === 'completed', readOnly: false };
 }
-export async function listTasks(userId, startDate, endDate) {
-  const client = await getAuthedClientForUser(userId);
+export async function listTasks(userId, startDate, endDate, authed) {
+  const client = authed || await getAuthedClientForUser(userId);
   if (!client) return [];
   const tasks = google.tasks({ version: 'v1', auth: client });
   try {

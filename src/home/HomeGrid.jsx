@@ -2,11 +2,9 @@
 // No modo "Personalizar" cada bloco ganha uma faixa: alça de arrastar (mouse ou toque; com a alça em foco, as setas movem),
 // largura, Subir/Descer, Esconder (ou Excluir, no "Meu espaço"). Os escondidos ficam numa bandeja para voltar.
 // Regras de layout (validação/mescla) em shared/homeLayout.js; gravação em src/home/homePrefs.js. Sem biblioteca nova: o
-// dnd-kit já é o do quadro pessoal e do XFlow.
+// dnd-kit já é o do quadro pessoal e do XFlow, e só é baixado ao entrar em "Personalizar" (HomeGridDnd.jsx).
 import React, { useMemo, useState } from 'react';
-import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS as DndCSS } from '@dnd-kit/utilities';
+import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { GripVertical, ChevronUp, ChevronDown, ArrowUpToLine, EyeOff, Eye, Plus, RotateCcw, Check, Trash2, SlidersHorizontal } from 'lucide-react';
 import { Button, IconButton, Segmented } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -16,6 +14,8 @@ import {
   BLOCKS, DEFAULT_LAYOUT, WIDTHS, WIDTH_LABEL, MAX_SPACES, isSpaceId, newSpaceId, mergeLayout, isDefaultLayout,
   moveBlock, moveBlockTo, setBlockWidth, setBlockHidden,
 } from '../../shared/homeLayout.js';
+
+const HomeGridDnd = lazyRetry(() => import('./HomeGridDnd.jsx'));
 
 export const GRID_CSS = `
 .hg { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: stretch; }
@@ -65,9 +65,8 @@ const titleOf = (id, spaces) => (isSpaceId(id) ? spaceTitle(spaces[id] && spaces
 // Pega o bloco em qualquer ponto, menos nos botões e campos da faixa (clique neles continua sendo clique).
 const fromControl = (e) => e.target.closest && e.target.closest('button:not(.hb-grip), input, select, textarea, a');
 
-function Block({ item, index, total, edit, title, children, onMove, onMoveTop, onWidth, onHide, onDelete }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: !edit });
-  const style = edit ? { transform: DndCSS.Translate.toString(transform), transition } : undefined;
+function Block({ item, index, total, edit, title, children, onMove, onMoveTop, onWidth, onHide, onDelete, sortable }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging, style } = (edit && sortable) || {};
   const grab = edit && listeners ? {
     onMouseDown: (e) => { if (!fromControl(e)) listeners.onMouseDown(e); },
     onTouchStart: (e) => { if (!fromControl(e)) listeners.onTouchStart(e); },
@@ -110,10 +109,6 @@ export default function HomeGrid({ blocks, edit, onEditChange }) {
   const visible = layout.items.filter((it) => usable(it) && !it.hidden);
   const hidden = layout.items.filter((it) => usable(it) && it.hidden);
   const spaceCount = Object.keys(prefs.spaces).length;
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
-  );
   const tt = (id) => titleOf(id, prefs.spaces);
   const posOf = (lay, id) => lay.items.filter((it) => usable(it) && !it.hidden).findIndex((x) => x.id === id) + 1;
 
@@ -171,15 +166,13 @@ export default function HomeGrid({ blocks, edit, onEditChange }) {
     onDragCancel: ({ active }) => `Movimento cancelado. ${tt(active.id)} voltou ao lugar.`,
   };
 
-  const grid = (
-    <div className="hg">
-      {visible.map((it, i) => (
-        <Block key={it.id} item={it} index={i} total={visible.length} edit={edit} title={tt(it.id)} onMove={onMove} onMoveTop={onMoveTop} onWidth={onWidth} onHide={onHide} onDelete={isSpaceId(it.id) ? onDelete : null}>
-          {isSpaceId(it.id) ? <MySpace id={it.id} space={prefs.spaces[it.id]} spaces={prefs.spaces} editingLayout={edit} /> : blocks[it.id]}
-        </Block>
-      ))}
-    </div>
+  const byId = Object.fromEntries(visible.map((it) => [it.id, it]));
+  const renderBlock = (it, i, sortable) => (
+    <Block key={it.id} item={it} index={i} total={visible.length} edit={edit} title={tt(it.id)} onMove={onMove} onMoveTop={onMoveTop} onWidth={onWidth} onHide={onHide} onDelete={isSpaceId(it.id) ? onDelete : null} sortable={sortable}>
+      {isSpaceId(it.id) ? <MySpace id={it.id} space={prefs.spaces[it.id]} spaces={prefs.spaces} editingLayout={edit} /> : blocks[it.id]}
+    </Block>
   );
+  const grid = <div className="hg">{visible.map((it, i) => renderBlock(it, i, null))}</div>;
 
   return (
     <>
@@ -199,10 +192,9 @@ export default function HomeGrid({ blocks, edit, onEditChange }) {
         </div>
       )}
       <p className="ui-sr" role="status" aria-live="polite">{said}</p>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
-        accessibility={{ announcements, screenReaderInstructions: { draggable: 'Seta para cima ou para a esquerda sobe o bloco; para baixo ou para a direita desce.' } }}>
-        <SortableContext items={visible.map((x) => x.id)} strategy={rectSortingStrategy}>{grid}</SortableContext>
-      </DndContext>
+      {edit
+        ? <React.Suspense fallback={grid}><HomeGridDnd ids={visible.map((x) => x.id)} onDragEnd={onDragEnd} announcements={announcements} renderItem={(id, i, sortable) => renderBlock(byId[id], i, sortable)} /></React.Suspense>
+        : grid}
     </>
   );
 }

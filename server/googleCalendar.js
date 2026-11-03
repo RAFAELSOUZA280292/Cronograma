@@ -117,9 +117,9 @@ export async function getAuthedClientForUser(userId) {
 // ocorrência). Cancelados vêm incluídos de propósito (`status:
 // 'cancelled'`) — a Agenda precisa diferenciar visualmente "cancelado",
 // não só esconder.
-export async function listEvents(userId, timeMinISO, timeMaxISO) {
+export async function listEvents(userId, timeMinISO, timeMaxISO, authed) {
   if (!googleConfigured()) return [];
-  const client = await getAuthedClientForUser(userId);
+  const client = authed || await getAuthedClientForUser(userId);
   if (!client) return [];
   return listEventsWith(google.calendar({ version: 'v3', auth: client }), timeMinISO, timeMaxISO);
 }

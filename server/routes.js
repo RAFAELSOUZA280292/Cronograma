@@ -573,9 +573,11 @@ router.get('/projects/versions', requireAuth, async (req, res, next) => {
 router.get('/projects/lite', requireAuth, async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
+    // Só o pedaço da empresa que o nome e o acesso usam (o documento inteiro passa de 10 MB em produção).
+    const lite = "jsonb_build_object('company', jsonb_build_object('cnpj', data->'company'->'cnpj', 'name', data->'company'->'name', 'nomeFantasia', data->'company'->'nomeFantasia')) AS data";
     const sql = req.user.isSuperAdmin && !orgId
-      ? 'SELECT id, data, org_id FROM projects ORDER BY created_at ASC'
-      : 'SELECT id, data, org_id FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
+      ? `SELECT id, ${lite}, org_id FROM projects ORDER BY created_at ASC`
+      : `SELECT id, ${lite}, org_id FROM projects WHERE org_id=$1 ORDER BY created_at ASC`;
     const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
     const { rows } = await pool.query(sql, params);
     const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id));

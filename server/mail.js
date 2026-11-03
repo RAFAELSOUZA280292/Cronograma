@@ -14,9 +14,18 @@ import { crmRoleOf } from './crm/permissions.js';
 import { pool } from './db.js';
 import { annotateThreads, indexInBackground } from './mailLinks.js';
 import { tidyAnsweredInvites } from './inviteTidy.js';
+import { createCache, cachedThreads } from './mailCache.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
+
+const threadCache = createCache({ max: 5000 });
+const labelCache = createCache({ max: 500, ttlMs: 60 * 1000 });
+const META_HEADERS = ['From', 'To', 'Cc', 'Subject', 'Date', 'Message-ID'];
+const metaThreads = (gmail, userId, list, limit) => cachedThreads(threadCache, userId, list,
+  (id) => gmail.users.threads.get({ userId: 'me', id, format: 'metadata', metadataHeaders: META_HEADERS }).then((r) => r.data), mapLimit, limit);
+// Qualquer gravação da pessoa (ler, mover, enviar, pasta nova) muda os contadores: esquece as pastas guardadas dela.
+router.use((req, res, next) => { if (req.method !== 'GET') labelCache.deletePrefix(`${req.user.id}:`); next(); });
 
 const ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const INLINE_IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
@@ -52,8 +61,15 @@ router.get('/labels', async (req, res) => {
   try {
     const { data } = await gmail.users.labels.list({ userId: 'me' });
     const user = (data.labels || []).filter((l) => l.type === 'user' && l.labelListVisibility !== 'labelHide').slice(0, 200);
-    const ids = ['INBOX', 'DRAFT', 'SPAM', ...user.map((l) => l.id)];
-    const details = await mapLimit(ids, 8, (id) => gmail.users.labels.get({ userId: 'me', id }).then((r) => r.data).catch(() => null));
+    // Entrada, Rascunhos e Spam sempre na hora (e-mail novo aparece no contador); as pastas da pessoa (até 200 leituras) guardadas por 60 s.
+    const userKey = `${req.user.id}:${user.map((l) => l.id).join(',')}`;
+    let userDetails = labelCache.get(userKey);
+    const fresh = mapLimit(['INBOX', 'DRAFT', 'SPAM'], 3, (id) => gmail.users.labels.get({ userId: 'me', id }).then((r) => r.data).catch(() => null));
+    if (!userDetails) {
+      userDetails = await mapLimit(user.map((l) => l.id), 8, (id) => gmail.users.labels.get({ userId: 'me', id }).then((r) => r.data).catch(() => null));
+      if (userDetails.every(Boolean)) labelCache.set(userKey, userDetails);
+    }
+    const details = [...(await fresh), ...userDetails];
     const byId = Object.fromEntries(details.filter(Boolean).map((l) => [l.id, l]));
     const folders = Object.entries(FOLDERS).map(([id, f]) => ({
       id, name: f.name,
@@ -72,9 +88,7 @@ router.get('/threads', async (req, res) => {
     const pageToken = typeof req.query.pageToken === 'string' && req.query.pageToken.length < 200 ? req.query.pageToken : undefined;
     const { data } = await gmail.users.threads.list({ userId: 'me', labelIds, q, includeSpamTrash, maxResults: 30, pageToken });
     const list = data.threads || [];
-    const full = await mapLimit(list, 6, (t) => gmail.users.threads.get({
-      userId: 'me', id: t.id, format: 'metadata', metadataHeaders: ['From', 'To', 'Cc', 'Subject', 'Date', 'Message-ID'],
-    }).then((r) => r.data).catch(() => null));
+    const { threads: full } = await metaThreads(gmail, req.user.id, list, 6);
     const raw = full.filter(Boolean);
     // Selo "Cliente · KUHN" / faixa "Empresa fora do CRM" (§130) e índice só de metadados para a aba E-mails do CRM.
     const links = await annotateThreads(req.user, raw);
@@ -683,7 +697,7 @@ router.get('/inbox-peek', async (req, res) => {
   const gmail = await withGmail(req, res); if (!gmail) return;
   try {
     const { data } = await gmail.users.threads.list({ userId: 'me', labelIds: ['INBOX', 'UNREAD'], maxResults: 10 });
-    const full = await mapLimit(data.threads || [], 5, (t) => gmail.users.threads.get({ userId: 'me', id: t.id, format: 'metadata', metadataHeaders: ['From', 'Subject'] }).then((r) => r.data).catch(() => null));
+    const { threads: full } = await metaThreads(gmail, req.user.id, data.threads || [], 5);
     res.json({ threads: full.filter(Boolean).map(threadSummary).map(({ id, subject, from, date, snippet }) => ({ id, subject, from, date, snippet })) });
   } catch (e) { fail(res, e); }
 });
