@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-654 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+657 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (39)
+## 2026-11-03 (42)
 
+- `057f794` 19:43 — Gestão de Atividades: subatividades em zebra e em ordem automática (concluídas no topo, sem data, por data)
+- `a2edde0` 19:34 — Cérebro: Rafael confirmou em produção o anexar arquivo à vista (§161)
+- `ca217d6` 18:17 — Cérebro: anexar arquivo à vista (§161, E-25)
 - `1e4f4b2` 18:15 — E-mail: anexar arquivo à vista (botão com texto, clipe na barra, "Solte para anexar")
 - `794d3cb` 18:08 — Cérebro: Rafael confirmou em produção o encaminhar com as imagens embutidas (§160)
 - `1c4bc39` 17:54 — Cérebro: encaminhar com as imagens embutidas do original (§160, E-24)

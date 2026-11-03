@@ -1,4 +1,4 @@
-// Ordem das subatividades do cartão (2026-11-04, §162; Rafael: "atividades concluídas, mova sempre para o topo como concluído e as
+// Ordem das subatividades do cartão (2026-11-03, §162; Rafael: "atividades concluídas, mova sempre para o topo como concluído e as
 // não concluídas e em andamento deixe para baixo respeitando as datas; sem datas ficam no topo e da data mais próxima para mais
 // antiga de cima para baixo"). Grupos, de cima para baixo:
 //   1. concluídas (na ordem em que estavam);
