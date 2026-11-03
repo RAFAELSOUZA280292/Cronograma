@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-639 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+642 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (24)
+## 2026-11-03 (27)
 
+- `b3dcc0a` 15:56 — Favoritos e aba com o ícone de cada módulo (Agenda, E-mail, CRM…), no padrão PRICETAX
+- `3d2ea72` 15:22 — Cérebro: Rafael confirmou em produção a resposta ao convite em cores (§157)
+- `5c7adb9` 14:44 — Cérebro: resposta ao convite em cores de semáforo (§157)
 - `89c371f` 14:41 — Agenda: resposta ao convite em cores de semáforo (✅ Aceitar verde, 🟡 Talvez amarelo, ❌ Recusar vermelho)
 - `3fccb22` 14:11 — Cérebro: Rafael confirmou em produção o arrastar para pasta (§155)
 - `20bb212` 12:43 — Teste de fluxo "janelas do CRM" estável (§156)

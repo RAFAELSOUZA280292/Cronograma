@@ -84,6 +84,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Remetente com o nome da conta** (saía "Atenciosamente,", o que estava no campo Nome da assinatura) (§154).
   - **Arrastar para pasta** com cartãozinho abaixo do cursor, sem cobrir o nome da pasta (§155).
   - **Resposta ao convite em cores de semáforo** (✅ Aceitar, 🟡 Talvez, ❌ Recusar) (§157).
+  - **Ícone de cada módulo** nos favoritos do Safari, na tela de início e na aba (§158).
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
 
@@ -9335,3 +9336,11 @@ Medido num banco local de teste (`cronograma_perf`: cópia do de desenvolvimento
 
 - **Agora** (`src/agenda/RsvpButtons.jsx`, `agenda.css` `.agd-rsvp-btn`): **✅ Aceitar** verde, **🟡 Talvez** amarelo, **❌ Recusar** vermelho — contorno e fundo claro na cor; a resposta escolhida fica **cheia** (verde #16a34a, amarelo #facc15, vermelho #dc2626) com o emoji numa bolinha branca (sobre a cor cheia ele sumia) e o hover não sobrepõe a escolhida. Vale nos três lugares que usam o componente: detalhe do compromisso (`EventDetail.jsx`), cartão de convite do e-mail (`InviteCard.jsx`, rótulos Sim/Talvez/Não) e briefing da tela inicial. Os selos da lista de participantes (`.agd-resp`) seguem as mesmas cores (Não deixou de ser riscado). Cores próprias para o tema escuro.
 - **Testes:** navegador (build de produção local, compromisso simulado com 4 participantes — Sim, sem resposta, Talvez, Não), temas escuro e claro: cores dos botões e dos selos; Aceitar ficou cheio após a transição; Talvez cheio; Recusar pediu "Recusar este convite? O organizador será avisado." e ficou cheio; "Sua resposta" acompanhou. Suíte 65/65, fluxos 16/16. **Confirmado pelo Rafael em produção (03/11, ~14h45).**
+
+## 158. Favoritos e aba com o ícone de cada módulo (2026-11-03; Rafael, print dos Preferidos do Safari com "Agenda · PRICETAX" e "(6) E-mail · PRICETAX" com o mesmo X: "consegue para cada tipo de favorito ter um item?")
+
+- **Causa:** o Safari tira o ícone do favorito (e o "Adicionar à Tela de Início" tira ícone e nome) do **HTML** do endereço, sem rodar o app; o servidor entregava o mesmo `index.html` em todo endereço.
+- **Agora:** `shared/moduleIcons.js` (`MODULE_ICONS`, `moduleIcon`, `withModuleHead`) + `server/index.js` (no fallback do SPA, endereço de módulo pelo `modeForPath` de `src/lib/routes.js`): `/agenda`, `/email`, `/crm`, `/empresas`… saem com `apple-touch-icon` (180), `favicon` (64), `<title>` e `apple-mobile-web-app-title` "Módulo · PRICETAX" (`Cache-Control: no-cache`; `index.html` lido uma vez por versão). `src/App.jsx` troca o ícone da aba ao mudar de módulo (mesmo efeito do título, §149). Tela inicial, links públicos e o resto seguem com o X da marca.
+- **Ícones** (`public/icons/m-<módulo>-180.png` e `-64.png`, 13 módulos): fundo preto, o ícone do menu do painel (lucide, os mesmos do `SHELL_MODES`) em amarelo PRICETAX e o X da marca no canto (o de 64 px, para a aba, só o ícone). Gerados por `node scripts/gen-module-icons.mjs` (renderiza com o Chromium do teste de fluxos) — **rode de novo se um módulo novo entrar** (o teste `module-icons` falha se faltar arquivo).
+- **Favoritos já salvos** guardam o ícone antigo: para trocar, apague e favorite de novo (ou espere o Safari atualizar).
+- **Testes:** `scripts/module-icons.test.mjs` (no `test:puro`: ícone/título/nome no HTML, apelido de endereço, sem módulo não muda, todo módulo de `MODE_PATHS` tem os 2 arquivos); servidor local: `/agenda`, `/email`, `/crm`, `/empresas` com o ícone e o título de cada um, `/` e endereço desconhecido com o X, PNG servido como `image/png`; navegador: aba troca ícone e título em Agenda, CRM e Gestão de Atividades, ícone carrega. Suíte 66/66, fluxos 16/16, `seguranca-fase1` ok (CSP também nas páginas de módulo). **Não testado:** favoritar de verdade no Safari/iPhone.
