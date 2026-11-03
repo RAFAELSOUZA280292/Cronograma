@@ -316,3 +316,9 @@ tr[tabindex="0"]:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); o
 @media (pointer: coarse) { .ui-tk-pop label, .ui-tk-reset { min-height: 44px; } }
 .ui-tk-sticky { max-height: min(70vh, 720px); overflow: auto; }
 .ui-tk-sticky thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-2); }
+
+/* Subatividades do cartão (Gestão de Atividades, §162): linhas em zebra e realce ao passar o mouse, para achar a linha certa
+   (e as setas de mover) numa lista comprida. */
+.pb-chk-row { padding: 4px 6px; margin: 0 -6px; border-radius: var(--r-sm); }
+.pb-chk-row.alt { background: color-mix(in srgb, var(--text-1) 6%, transparent); }
+.pb-chk-row:hover { background: color-mix(in srgb, var(--ui-accent, #F5C400) 12%, var(--bg-3)); }

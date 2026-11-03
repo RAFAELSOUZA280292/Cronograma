@@ -26,6 +26,7 @@ import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { loadXlsx } from '../lib/xlsxLoader.js';
 import { noteToPlain } from '../lib/richNote.js';
 import { withoutLayer } from '../lib/nav.js';
+import { sortChecklist, moveInChecklist, sameSlot } from '../personal/checklistOrder.js';
 import { CARD_STATUS_META, COLUMN_COLOR_META, ConfirmDiscardModal, LoadingScreen, SidePanel, ThemeToggleBtn, ToastStack, addDays, fmtDate, fmtTs, genShareToken, parseDate, toISODate, todayISOStr, uid, useAutosaveTimestamp, useDebouncedField, useIsMobile, useToasts } from '../App.jsx';
 import { S } from '../styles/S.js';
 
@@ -864,8 +865,9 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
 
           <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
           <div style={S.checklistList}>
-            {(card.checklist || []).map((item, itemIdx, itemList) => (
-              <div key={item.id} ref={item.id === firstHitId ? firstHitRef : undefined} style={hitIds.has(item.id) ? { background: 'rgba(245,196,0,.14)', borderRadius: 6, padding: '2px 4px', margin: '0 -4px' } : undefined}>
+            {/* Ordem automática (§162): concluídas no topo, abertas sem data, abertas por data (mais próxima de hoje primeiro); linhas em zebra. */}
+            {sortChecklist(card.checklist, todayISOStr()).map((item, itemIdx, itemList) => (
+              <div key={item.id} ref={item.id === firstHitId ? firstHitRef : undefined} className={`pb-chk-row${itemIdx % 2 ? ' alt' : ''}${item.done ? ' done' : ''}`} style={hitIds.has(item.id) ? { background: 'rgba(245,196,0,.14)' } : undefined}>
               <div style={{ ...S.checklistRow, flexWrap: 'wrap', rowGap: 4 }}>
                 <input type="checkbox" checked={item.done} onChange={() => onToggleChecklistItem(item.id)} />
                 {editingChecklistId === item.id ? (
@@ -899,8 +901,17 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
                     <ChecklistResp item={item} readOnly={readOnly} open={respOpenId === item.id} onToggle={() => setRespOpenId(respOpenId === item.id ? null : item.id)} />
                     {!readOnly && (
                       <>
-                        <button className="pb-dense" type="button" aria-label="Mover item para cima" title={itemIdx === 0 ? 'Já é o primeiro item' : 'Mover item para cima'} style={{ ...S.chipX, ...(itemIdx === 0 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === 0} onClick={() => onMoveChecklistItem(item.id, -1)}><ChevronUp aria-hidden="true" size={13} /></button>
-                        <button className="pb-dense" type="button" aria-label="Mover item para baixo" title={itemIdx === itemList.length - 1 ? 'Já é o último item' : 'Mover item para baixo'} style={{ ...S.chipX, ...(itemIdx === itemList.length - 1 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === itemList.length - 1} onClick={() => onMoveChecklistItem(item.id, 1)}><ChevronDown aria-hidden="true" size={13} /></button>
+                        {(() => {
+                          // Setas só trocam com o vizinho do mesmo grupo e mesma data; fora disso a posição é a da ordem automática (§162).
+                          const up = sameSlot(item, itemList[itemIdx - 1]); const down = sameSlot(item, itemList[itemIdx + 1]);
+                          const why = item.done ? 'As concluídas ficam no topo' : item.dueDate ? 'A posição segue a data do item' : 'As sem data ficam logo abaixo das concluídas';
+                          return (
+                            <>
+                              <button className="pb-dense" type="button" aria-label="Mover item para cima" title={up ? 'Mover item para cima' : why} style={{ ...S.chipX, ...(up ? {} : { opacity: .35, cursor: 'default' }) }} disabled={!up} onClick={() => onMoveChecklistItem(item.id, -1)}><ChevronUp aria-hidden="true" size={13} /></button>
+                              <button className="pb-dense" type="button" aria-label="Mover item para baixo" title={down ? 'Mover item para baixo' : why} style={{ ...S.chipX, ...(down ? {} : { opacity: .35, cursor: 'default' }) }} disabled={!down} onClick={() => onMoveChecklistItem(item.id, 1)}><ChevronDown aria-hidden="true" size={13} /></button>
+                            </>
+                          );
+                        })()}
                       </>
                     )}
                     {!readOnly && (
@@ -2104,22 +2115,19 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     const v = (text || '').trim();
     if (!v) return;
     const item = { id: uid('chk'), text: v, done: false, ...(isIsoDay(dueDate) ? { dueDate } : {}) };
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: [...(cd.checklist || []), item], updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: sortChecklist([...(cd.checklist || []), item], todayISOStr()), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
   }
   function toggleChecklistItem(colId, cardId, itemId) {
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? (i.done ? { ...i, done: false, doneAt: '' } : { ...i, done: true, doneAt: new Date().toISOString() }) : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: sortChecklist((cd.checklist || []).map((i) => (i.id === itemId ? (i.done ? { ...i, done: false, doneAt: '' } : { ...i, done: true, doneAt: new Date().toISOString() }) : i)), todayISOStr()), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
   function setChecklistItemDate(colId, cardId, itemId, date) {
     const v = isIsoDay(date) ? date : '';
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: (cd.checklist || []).map((i) => { if (i.id !== itemId) return i; const { dueDate, ...rest } = i; return v ? { ...rest, dueDate: v } : rest; }), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: sortChecklist((cd.checklist || []).map((i) => { if (i.id !== itemId) return i; const { dueDate, ...rest } = i; return v ? { ...rest, dueDate: v } : rest; }), todayISOStr()), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
   }
   function moveChecklistItem(colId, cardId, itemId, dir) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => {
-      const list = [...(cd.checklist || [])];
-      const i = list.findIndex((x) => x.id === itemId);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= list.length) return cd;
-      [list[i], list[j]] = [list[j], list[i]];
+      const list = moveInChecklist(cd.checklist, itemId, dir, todayISOStr());
+      if (!list) return cd;
       return { ...cd, checklist: list, updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
     });
   }
