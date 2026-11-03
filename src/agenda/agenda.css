@@ -355,7 +355,7 @@
 .agd-mark { position: absolute; left: 0; right: 0; z-index: 1; border: 2px dashed var(--ui-info); border-radius: 6px; background: color-mix(in srgb, var(--ui-info) 12%, transparent); pointer-events: none; }
 .agd-mark span { position: absolute; right: 4px; bottom: 2px; font-size: 10.5px; font-weight: 700; color: var(--ui-info); background: var(--bg-1); border-radius: 4px; padding: 0 4px; }
 
-/* Resposta ao convite em cores de semáforo (§156): contorno e fundo claro na cor; a escolhida fica cheia. Vale no detalhe do
+/* Resposta ao convite em cores de semáforo (§157): contorno e fundo claro na cor; a escolhida fica cheia. Vale no detalhe do
    compromisso, no cartão de convite do e-mail e no briefing. */
 .agd-rsvp .ui-btn.agd-rsvp-btn { gap: 6px; font-weight: 700; border-width: 1.5px; }
 .agd-rsvp-emoji { font-size: 13px; line-height: 1; }

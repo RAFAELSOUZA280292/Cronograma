@@ -247,8 +247,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/agenda/NewEventModal.jsx` | 351 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/PublicBooking.jsx` | 142 | Página pública de agendamento (/agendar/:token, §139). Sem login. Quem abre vê só os horários livres e os blocos "Ocupado" da |
 | `src/agenda/RenataAgendaBriefing.jsx` | 710 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
-| `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
-| `src/agenda/agenda.css` | 357 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
+| `src/agenda/RsvpButtons.jsx` | 32 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
+| `src/agenda/agenda.css` | 384 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
 | `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
 | `src/agenda/dayLoad.js` | 188 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |

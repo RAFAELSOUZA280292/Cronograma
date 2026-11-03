@@ -1,6 +1,6 @@
 // Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos
 // (o cartão de convite do e-mail usa Sim / Talvez / Não, como o Google).
-// Cores de semáforo (Rafael, 03/11/2026, §156): Aceitar verde ✅, Talvez amarelo 🟡, Recusar vermelho ❌; a escolhida fica cheia.
+// Cores de semáforo (Rafael, 03/11/2026, §157): Aceitar verde ✅, Talvez amarelo 🟡, Recusar vermelho ❌; a escolhida fica cheia.
 import React from 'react';
 import { Button } from '../ui/index.jsx';
 import './agenda.css';
