@@ -799,6 +799,8 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
     return () => { alive = false; };
   }, [id, onOpened, attempt]);
 
+  // Responder / Responder a todos / Encaminhar (§152): "a todos" vira "Responder" quando só há uma pessoa além de mim.
+  const composeOn = (mode, m) => onCompose(mode === 'replyAll' && replyAllCount(m, myEmail) <= 1 ? 'reply' : mode, m.id);
   const moveIt = () => { const last = [...data.messages].reverse().find((m) => !m.sent && m.from && m.from.email); onMove(last ? last.from : null); };
   const starIt = () => { onAct(data.starred ? 'unstar' : 'star'); setData((d) => ({ ...d, starred: !d.starred })); };
   // Mesmas ações da barra, para os atalhos de teclado (MailScreen chama pelo ref).
@@ -807,7 +809,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
       const last = data && data.messages[data.messages.length - 1];
       if (!last) return;
       if (last.draft) { onOpenDraft(); return; }
-      onCompose(mode === 'replyAll' && replyAllCount(last, myEmail) <= 1 ? 'reply' : mode, last.id);
+      composeOn(mode, last);
     },
     archive: () => { if (data && !data.inTrash && data.inInbox) onAct('archive'); else if (data && data.inTrash) onAct('untrash'); },
     trash: () => { if (data && !data.inTrash) onAct('trash'); },
@@ -821,13 +823,17 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
   if (!data) return <div className="mail-thread"><div className="mail-thread-bar">{back}</div><BusyBar active /></div>;
 
   const toggle = (mid) => setExpanded((prev) => { const n = new Set(prev); if (n.has(mid)) n.delete(mid); else n.add(mid); return n; });
+  // A barra do topo age sobre a última mensagem de verdade (rascunho não se responde).
+  const target = [...data.messages].reverse().find((m) => !m.draft) || null;
 
   return (
     <div className="mail-thread">
       <div className="mail-thread-bar">
         {back}
         <div className="mail-actions">
-          {data.messages.length > 0 && <IconButton label="Responder" icon={Reply} size="sm" onClick={() => onCompose('reply', data.messages[data.messages.length - 1].id)} />}
+          {target && <IconButton label="Responder" icon={Reply} size="sm" onClick={() => composeOn('reply', target)} />}
+          {target && replyAllCount(target, myEmail) > 1 && <IconButton label="Responder a todos" icon={ReplyAll} size="sm" onClick={() => composeOn('replyAll', target)} />}
+          {target && <IconButton label="Encaminhar" icon={Forward} size="sm" onClick={() => composeOn('forward', target)} />}
           {data.inTrash ? <IconButton label="Restaurar" icon={Undo2} size="sm" onClick={() => onAct('untrash')} />
             : data.inInbox ? <IconButton label="Arquivar" icon={Archive} size="sm" onClick={() => onAct('archive')} />
               : <IconButton label="Mover para a Caixa de entrada" icon={Inbox} size="sm" onClick={() => { onAct('inbox'); setData((d) => ({ ...d, inInbox: true, inSpam: false })); }} />}
@@ -862,6 +868,17 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
               ) : <div className="mail-addr mail-one-line">{m.snippet}</div>}
             </div>
             <span className="mail-date" title={fmtFullDate(m.date)}><span className="mail-date-full">{fmtFullDate(m.date)}</span><span className="mail-date-short">{fmtListDate(m.date)}</span></span>
+            {!m.draft && (
+              // Como no Gmail: Responder direto e o ⋮ com as três opções, por mensagem. O clique aqui não abre/fecha a mensagem.
+              <span className="mail-msg-acts" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <IconButton label="Responder" icon={Reply} size="sm" onClick={() => composeOn('reply', m)} />
+                <MoreMenu label="Mais opções desta mensagem" items={[
+                  { key: 'reply', label: 'Responder', icon: Reply, onClick: () => composeOn('reply', m) },
+                  ...(replyAllCount(m, myEmail) > 1 ? [{ key: 'replyAll', label: 'Responder a todos', icon: ReplyAll, onClick: () => composeOn('replyAll', m) }] : []),
+                  { key: 'forward', label: 'Encaminhar', icon: Forward, onClick: () => composeOn('forward', m) },
+                ]} />
+              </span>
+            )}
           </header>
           {expanded.has(m.id) && <MessageBody msg={m} onReply={() => onCompose('reply', m.id)} onGoAgenda={onGoAgenda} onFocus={onInviteFocus} onAnswered={data && data.inInbox ? () => onAct('archive') : undefined} />}
           {expanded.has(m.id) && m.draft && (
@@ -869,9 +886,9 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
           )}
           {expanded.has(m.id) && !m.draft && (
             <div className="mail-reply-bar">
-              <Button size="sm" icon={Reply} onClick={() => onCompose('reply', m.id)}>Responder</Button>
-              {replyAllCount(m, myEmail) > 1 && <Button size="sm" icon={ReplyAll} onClick={() => onCompose('replyAll', m.id)}>Responder a todos</Button>}
-              <Button size="sm" icon={Forward} onClick={() => onCompose('forward', m.id)}>Encaminhar</Button>
+              <Button size="sm" icon={Reply} onClick={() => composeOn('reply', m)}>Responder</Button>
+              {replyAllCount(m, myEmail) > 1 && <Button size="sm" icon={ReplyAll} onClick={() => composeOn('replyAll', m)}>Responder a todos</Button>}
+              <Button size="sm" icon={Forward} onClick={() => composeOn('forward', m)}>Encaminhar</Button>
             </div>
           )}
         </article>
@@ -964,7 +981,7 @@ const READING_LABEL = { right: 'À direita', bottom: 'Embaixo da lista', off: 'D
 
 // "Exibir": painel de leitura, densidade da lista, trecho e coluna de pastas. A escolha fica guardada por pessoa (mailView.js).
 // ⋮ da lista (como no Gmail): ações que valem para a pasta inteira.
-function MoreMenu({ items }) {
+function MoreMenu({ items, label = 'Mais opções' }) {
   const [open, setOpen] = useState(null);
   const wrap = useRef(null);
   const toggle = (e) => {
@@ -983,11 +1000,11 @@ function MoreMenu({ items }) {
   }, [open]);
   return (
     <div className="mail-view-wrap" ref={wrap}>
-      <IconButton label="Mais opções" icon={MoreVertical} size="sm" aria-haspopup="menu" aria-expanded={!!open} onClick={toggle} />
+      <IconButton label={label} icon={MoreVertical} size="sm" aria-haspopup="menu" aria-expanded={!!open} onClick={toggle} />
       {open && (
-        <div className="mail-view-menu mail-sel-menu" role="menu" aria-label="Mais opções" style={{ top: open.top, left: open.left, width: open.width }}>
+        <div className="mail-view-menu mail-sel-menu" role="menu" aria-label={label} style={{ top: open.top, left: open.left, width: open.width }}>
           {items.map((it) => (
-            <button key={it.key} type="button" role="menuitem" className="mail-sel-item" onClick={() => { setOpen(null); it.onClick(); }}>{it.label}</button>
+            <button key={it.key} type="button" role="menuitem" className="mail-sel-item" onClick={() => { setOpen(null); it.onClick(); }}>{it.icon && <it.icon size={15} aria-hidden="true" />}{it.label}</button>
           ))}
         </div>
       )}

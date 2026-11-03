@@ -356,3 +356,16 @@ body.mail-resizing iframe { pointer-events: none; }
   .mail-sidewrap:not(.mobile) .mail-side { position: absolute; top: 0; bottom: 0; right: 53px; z-index: 30; max-width: calc(100% - 120px); box-shadow: -8px 0 24px rgba(0, 0, 0, .28); }
   .mail-sidewrap:not(.mobile) .mail-split { display: none; }
 }
+
+/* Responder / ⋮ no cabeçalho de cada mensagem (§152), como no Gmail; o menu ganha ícone ao lado do texto. */
+.mail-msg-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; margin: -4px -6px 0 2px; cursor: default; }
+.mail-sel-item { display: flex; align-items: center; gap: 10px; }
+.mail-sel-item svg { flex: 0 0 auto; color: var(--text-4); }
+/* Leitura estreita (painel ao lado aberto, janela pequena): a mesma troca do celular, pela largura da LEITURA e não da tela —
+   data curta e sem o endereço ao lado do nome, para o Responder e o ⋮ caberem sem espremer o remetente. */
+.mail-reader { container-type: inline-size; container-name: mail-reader; }
+@container mail-reader (max-width: 560px) {
+  .mail-msg-head .mail-date-full, .mail-msg-head .mail-addr-email { display: none; }
+  .mail-msg-head .mail-date-short { display: inline; }
+}
+.mail-msg-who > div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
