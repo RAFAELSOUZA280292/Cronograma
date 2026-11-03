@@ -76,6 +76,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Varredura de segurança, velocidade e usabilidade (plano em 3 fases); **Fase 1, segurança**: cliente sem chave de API, freio no link de agendamento, iCal sem IP interno, e-mail só da própria cópia, CSP só relatório, assinatura não perde edição (§145).
   - **Varredura, Fase 2, velocidade**: aba escondida não consulta, Agenda em paralelo, Caixa com memória por `historyId`, lembrete de tarefa em 3 consultas, xlsx enxuto e carregamento sob demanda; CRM com `LATERAL` medido e descartado (§146).
   - **Cota do Gmail por pessoa** (03/11): a Caixa repete quando o Google pede pausa, tarefas de fundo cedem a vez, log diz quem gastou; botão Tentar de novo (§148).
+  - **Título da aba pelo módulo** ("CRM · PRICETAX", empresa aberta na frente, "(N)" do e-mail preservado) (§149).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9267,3 +9268,9 @@ Medido num banco local de teste (`cronograma_perf`: cópia do de desenvolvimento
 - **Tela** (`MailScreen.jsx` `ThreadView`): o aviso "Não consegui abrir o e-mail" ganhou **Tentar de novo**.
 - **Testes:** `scripts/gmail-quota.test.mjs` (no `test:puro`, 6: custo por origem, Caixa repete e devolve o e-mail, desiste depois de 3, erro que não é de cota não repete, fundo não repete e não começa com a cota apertada, 429/403 de cota × 403 de permissão); envoltório conferido com o cliente real do `googleapis` (o Google respondeu 401 sem login e o medidor somou 16 = 10 + 5 + 1). Navegador (build de produção local, respostas da Caixa simuladas na página): o 1º abrir falhou com o aviso e o botão; **Tentar de novo** abriu o e-mail. Suíte 63/63, fluxos 16/16. **Confirmado pelo Rafael em produção (03/11, manhã): o e-mail abriu.** Ainda não visto com a cota apertada de novo — o log novo mostra qual origem gastou se voltar a acontecer.
 - **Lição:** o medidor é por processo (zera a cada deploy e não soma entre instâncias); com uma instância só na Railway basta.
+
+## 149. Título da aba do navegador pelo módulo aberto (2026-11-03, manhã; Rafael, print da aba "(13) PRICETAX — Cronograma de Reforma Tributária": "se eu abro o CRM, fica tudo a mesma coisa")
+
+- **Agora:** "Início · PRICETAX", "E-mail · PRICETAX", "CRM · PRICETAX", "Agenda · PRICETAX"… (rótulo do `SHELL_MODES`); com **uma** empresa aberta, "KUHN · Empresas · PRICETAX" (nome fantasia, senão razão social). O "(N) " dos não lidos continua sendo posto pela Caixa (`MailScreen.jsx`) e é preservado. Tela de login e páginas públicas seguem com o título do `index.html` / o próprio.
+- **Como** (`src/App.jsx`, `AppScreens`): o texto é montado junto do `shellCurrent` e guardado em `tabTitleRef`; o `useEffect` que grava o `document.title` fica **antes** dos retornos da tela de login/carregamento (`publicBoardMatch`… `!projectsLoaded`). A 1ª versão, com o efeito ao lado do `shellCurrent`, derrubou a tela ("Rendered more hooks than during the previous render") — pego no navegador local antes de publicar.
+- **Testes:** navegador local: Início, CRM, Agenda, Gestão de Atividades, Visão Geral, Pareceres, E-mail e Empresas com o título certo; PETROBRAS aberta → "PETROBRAS - EDISE · Empresas · PRICETAX"; Caixa simulada com 13 não lidos → "(13) E-mail · PRICETAX", e o "(13)" some no CRM. Suíte 63/63, fluxos 16/16.

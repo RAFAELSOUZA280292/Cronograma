@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-618 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+621 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (3)
+## 2026-11-03 (6)
 
+- `d80da0e` 11:04 — Título da aba do navegador pelo módulo aberto (E-mail · PRICETAX, CRM · PRICETAX; empresa aberta na frente)
+- `558b4b4` 09:57 — Cérebro: Rafael confirmou em produção a correção da cota do Gmail (§148)
+- `aab759d` 09:53 — Cérebro: cota do Gmail por pessoa (§148, E-17)
 - `0ce74fb` 09:52 — E-mail: cota do Gmail por pessoa — Caixa repete quando o Google pede pausa, fundo cede a vez, log mostra quem gastou
 - `d896b3c` 01:11 — Usabilidade (Fase 3) e velocidade (Fase 2): toque mostra o motivo do botão cinza, Desfazer ao excluir negócio, menos jargão; Agenda em paralelo, BIP e notificações pausados, RenataChat sob demanda; cérebro em dia (§146,…
 - `4c45959` 01:11 — Velocidade (Fase 2 da varredura): aba escondida não consulta, Caixa com memória por historyId, lembrete de tarefa em 3 consultas, xlsx enxuto e dnd-kit sob demanda
