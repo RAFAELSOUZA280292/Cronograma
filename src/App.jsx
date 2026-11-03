@@ -1926,6 +1926,14 @@ function AppScreens({ shellRef, bump }) {
   shellRef.current = null;
 
   const publicBoardMatch = window.location.pathname.match(/^\/quadro\/([A-Za-z0-9_-]+)/);
+  // Título da aba: o valor é montado mais abaixo (depende do módulo); o efeito fica aqui, antes dos retornos da tela de login/carregamento,
+  // para a ordem dos hooks não mudar. Sem sessão, fica o título padrão do index.html.
+  const tabTitleRef = useRef('');
+  useEffect(() => {
+    if (!tabTitleRef.current) return;
+    const unread = (document.title.match(/^\(\d+\) /) || [''])[0];
+    if (document.title !== unread + tabTitleRef.current) document.title = unread + tabTitleRef.current;
+  });
   if (publicBoardMatch) {
     return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} /></React.Suspense>;
   }
@@ -2000,6 +2008,12 @@ function AppScreens({ shellRef, bump }) {
   const shellModeKeys = [...availableModes, currentUser.role === 'master' && 'users', currentUser.role === 'master' && 'ops'].filter(Boolean);
   const shellModes = SHELL_MODES.filter((m) => shellModeKeys.includes(m.key));
   const shellCurrent = (showUsers || effectiveMode === 'users') && currentUser.role === 'master' ? 'users' : effectiveMode;
+  // Título da aba do navegador pelo módulo aberto (Rafael, 03/11: "se eu abro o CRM, fica tudo a mesma coisa"). Com UMA empresa aberta,
+  // o nome dela vem na frente. O "(N) " dos não lidos é da Caixa de e-mail (MailScreen) e fica preservado.
+  const titleCompany = shellCurrent === 'company' && selectedProjectIds.length === 1 ? projects.find((p) => p.id === selectedProjectIds[0]) : null;
+  const titleCompanyName = titleCompany ? (titleCompany.company.nomeFantasia || titleCompany.company.name || '') : '';
+  const titleModule = shellCurrent ? (SHELL_MODES.find((m) => m.key === shellCurrent) || {}).label : 'Início';
+  tabTitleRef.current = [titleCompanyName, titleModule, 'PRICETAX'].filter(Boolean).join(' · ');
   // Itens da busca global (Ctrl+K), dos recentes e dos favoritos. `kind`+`rid` identificam o item de forma estável (é só isso
   // que os recentes/favoritos guardam); `run` é reconstruído aqui a cada vez, a partir dos dados atuais.
   // Negócios, empresas e contatos do CRM para a paleta (Ctrl+K): vêm do servidor, só a partir de 2 letras.
