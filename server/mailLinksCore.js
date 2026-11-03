@@ -322,3 +322,7 @@ export function canReadContent(user, ownerIds) {
   if (user.isSuperAdmin || user.workRole === 'socio') return true;
   return (ownerIds || []).includes(user.id);
 }
+
+// De QUAL caixa ler: sócio lê a cópia de qualquer colega; quem só participou lê a própria (a do colega pode ter respostas e
+// encaminhamentos de que a pessoa foi tirada depois).
+export const canReadOwnerCopy = (user, ownerId) => !!user && (user.isSuperAdmin || user.workRole === 'socio' || ownerId === user.id);

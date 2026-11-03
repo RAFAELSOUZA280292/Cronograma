@@ -7,6 +7,7 @@ import https from 'node:https';
 import dns from 'node:dns';
 import net from 'node:net';
 import { unfoldIcs, parseLine, icsDate } from './calendarInvite.js';
+import { isPrivateAddress } from './linkPreview.js';
 
 export const MAX_FEED_BYTES = 5 * 1024 * 1024;
 
@@ -18,12 +19,15 @@ export function normalizeFeedUrl(raw) {
   try { u = new URL(v); } catch { return null; }
   if (u.protocol !== 'https:' || !u.hostname || u.username || u.password) return null;
   if (u.port && u.port !== '443') return null;
+  // IP digitado direto não passa pelo lookup protegido da conexão; agenda de verdade sempre tem nome (Google, Outlook…).
+  if (net.isIP(u.hostname.replace(/^\[|\]$/g, ''))) return null;
   return u.toString();
 }
 
 // Endereço que o servidor nunca deve buscar: rede interna, loopback, link-local (inclui o 169.254.169.254 das nuvens), multicast.
 export function isPrivateIp(ip) {
   const v = String(ip || '').replace(/^::ffff:/i, '');
+  if (net.isIP(String(ip || '')) && isPrivateAddress(String(ip))) return true;
   if (net.isIPv4(v)) {
     const [a, b] = v.split('.').map(Number);
     return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)

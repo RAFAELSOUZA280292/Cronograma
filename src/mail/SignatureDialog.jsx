@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { Button } from '../ui/index.jsx';
-import { notify } from '../ui/dialogs.jsx';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { apiPost, apiPut } from '../lib/api.js';
 import { useDialog } from '../lib/nav.js';
 import MailFrame from './MailFrame.jsx';
@@ -30,7 +30,15 @@ export default function SignatureDialog({ value, onClose, onSaved }) {
   const [srcFile, setSrcFile] = useState(null);
   const [imgError, setImgError] = useState('');
   const fileRef = useRef(null);
-  const trap = useDialog(onClose);
+  const initial = useRef(JSON.stringify(value.signature || {}));
+  const dirty = JSON.stringify(sig) !== initial.current;
+  // Clicar fora, Esc ou Cancelar com alteração pergunta antes (a boas-vindas monta a assinatura aqui).
+  async function requestClose() {
+    if (busy) return;
+    if (dirty && !(await askConfirm({ title: 'Descartar a assinatura?', message: 'As alterações desta assinatura ainda não foram salvas.', confirmLabel: 'Descartar', cancelLabel: 'Continuar editando', danger: true }))) return;
+    onClose();
+  }
+  const trap = useDialog(requestClose);
 
   useEffect(() => {
     const t = setTimeout(() => { apiPost('/api/mail/signature/preview', { signature: sig }).then((r) => setPreview(r.previewHtml)).catch(() => {}); }, 300);
@@ -68,7 +76,7 @@ export default function SignatureDialog({ value, onClose, onSaved }) {
   }
 
   return (
-    <div className="ui-dlg-overlay" onClick={onClose}>
+    <div className="ui-dlg-overlay" onClick={requestClose}>
       <div className="ui-dlg mail-sig-dlg" role="dialog" aria-modal="true" aria-label="Assinatura do e-mail" ref={trap.ref} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <h2 className="ui-dlg-title">Assinatura do e-mail</h2>
         <div className="ui-dlg-msg">Vai no fim dos e-mails novos e das respostas. Ela é montada em tabela simples para aparecer igual no Outlook, no Gmail e no celular.</div>
@@ -124,7 +132,7 @@ export default function SignatureDialog({ value, onClose, onSaved }) {
         <div className="mail-sig-label">Prévia</div>
         <div className="mc-preview">{preview ? <MailFrame html={preview} title="Prévia da assinatura" minHeight={40} /> : <div className="mail-pad">{isImage ? 'Escolha a imagem da assinatura.' : 'Preencha ao menos um campo.'}</div>}</div>
         <div className="ui-dlg-actions">
-          <button type="button" className="ui-btn" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button type="button" className="ui-btn" onClick={requestClose} disabled={busy}>Cancelar</button>
           <Button variant="primary" onClick={save} loading={busy}>Salvar assinatura</Button>
         </div>
       </div>

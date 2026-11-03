@@ -120,7 +120,7 @@ export default function PublicBookingScreen({ token }) {
                 <div className="pbk-chosen"><b>{longDay(slot)}</b>, {hmBr(slot)} – {hmBr(new Date(Date.parse(slot) + info.duration * 60000).toISOString())}</div>
                 <label>Seu nome*<input value={form.name} onChange={set('name')} maxLength={80} required autoFocus autoComplete="name" /></label>
                 <label>Assunto*<input value={form.subject} onChange={set('subject')} maxLength={120} required placeholder="Ex.: Proposta de parceria" /></label>
-                <label>E-mails dos participantes*<textarea value={form.emails} onChange={set('emails')} rows={2} required placeholder="voce@empresa.com.br, colega@empresa.com.br" /><span className="pbk-hint">Inclua o seu e o de todos que devem estar na reunião, separados por vírgula. Todos recebem o convite.{emailCount ? ` ${emailCount} e-mail${emailCount === 1 ? '' : 's'}.` : ''}</span></label>
+                <label>E-mails dos participantes*<textarea value={form.emails} onChange={set('emails')} rows={2} required placeholder="voce@empresa.com.br, colega@empresa.com.br" /><span className="pbk-hint">Inclua o seu e o de todos que devem estar na reunião, separados por vírgula (até 5). Todos recebem o convite.{emailCount ? ` ${emailCount} e-mail${emailCount === 1 ? '' : 's'}.` : ''}</span></label>
                 <fieldset className="pbk-meet">
                   <legend>Link do Google Meet?*</legend>
                   <label><input type="radio" name="meet" checked={form.meet === true} onChange={() => setForm((f) => ({ ...f, meet: true }))} /> Sim, criar o link</label>

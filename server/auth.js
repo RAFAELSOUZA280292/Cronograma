@@ -44,7 +44,7 @@ export const ORG_INACTIVE_MSG = 'O acesso desta organização está suspenso. Fa
 export const orgInactive = (row) => !!row && !row.is_super_admin && !!row.org_status && row.org_status !== 'active';
 
 // Sessão aberta só vale enquanto o usuário existe, não está bloqueado, não expirou e não trocou a senha desde a emissão do cookie.
-function sessionProblem(row, payload) {
+export function sessionProblem(row, payload) {
   if (!row) return 'Sessão inválida. Faça login novamente.';
   if (row.blocked) return row.block_reason || 'Acesso bloqueado. Fale com um PRICETAX Master.';
   if (orgInactive(row)) return ORG_INACTIVE_MSG;

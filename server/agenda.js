@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import { requireAuth } from './auth.js';
 import { canAccessProject } from './routes.js';
+import { isClientUser } from './clientView.js';
 import { pool } from './db.js';
 import { getConnectionStatus, listEvents, respondToEvent, googleConfigured, getEventDetail, findEventByICalUID, savePanelEvent, respondWithNote, rescheduleEvent, cancelPanelEvent } from './googleCalendar.js';
 import { brInstant, parseEventForm, parseRange, proposalComment, withDeadline } from './agendaForm.js';
@@ -284,6 +285,7 @@ router.patch('/accounts/principal', requireAuth, async (req, res, next) => {
 
 router.post('/accounts/ical', requireAuth, async (req, res, next) => {
   try {
+    if (isClientUser(req.user)) return res.status(403).json({ message: 'Agendas extras são só para a equipe PRICETAX.' });
     const out = await addIcalAccount(req.user.id, req.body || {});
     res.status(201).json({ ...out, accounts: await listAccounts(req.user.id) });
   } catch (e) {

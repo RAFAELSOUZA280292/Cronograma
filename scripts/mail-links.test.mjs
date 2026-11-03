@@ -1,7 +1,7 @@
 // E-mail ligado ao CRM e às Empresas (§130): chave por domínio × provedor público, @pricetax ignorado, prioridade das fontes,
 // selo, faixa "Empresa fora do CRM", Operações sem ids do CRM, agrupamento e quem lê o texto. Puro (sem banco, sem Gmail).
 //   node scripts/mail-links.test.mjs
-import { suggestCompany, keyOf, cleanKey, siteDomain, buildDirectory, classifyThread, linkForViewer, badgeOf, keysOfCompany, groupRows, threadFacts, canReadContent, prettyKey, isRobot } from '../server/mailLinksCore.js';
+import { suggestCompany, keyOf, cleanKey, siteDomain, buildDirectory, classifyThread, linkForViewer, badgeOf, keysOfCompany, groupRows, threadFacts, canReadContent, canReadOwnerCopy, prettyKey, isRobot } from '../server/mailLinksCore.js';
 import { headerMap, parseAddressList } from '../server/googleMail.js';
 
 let failed = 0;
@@ -111,6 +111,8 @@ ok('sócio lê qualquer conversa da equipe', canReadContent({ id: 'u9', workRole
 ok('quem participou lê', canReadContent({ id: 'u1', workRole: 'comercial' }, ['u1', 'u2']));
 ok('comercial que não participou não lê', !canReadContent({ id: 'u3', workRole: 'comercial' }, ['u1']));
 ok('super admin lê', canReadContent({ id: 'x', isSuperAdmin: true }, []));
+ok('quem só participou lê a PRÓPRIA cópia, nunca a do colega', canReadOwnerCopy({ id: 'u1', workRole: 'operacoes' }, 'u1') && !canReadOwnerCopy({ id: 'u1', workRole: 'operacoes' }, 'u2'));
+ok('sócio lê a cópia de qualquer colega', canReadOwnerCopy({ id: 'u9', workRole: 'socio' }, 'u1'));
 
 // Caso real (02/11/2026): contato da Tróia cadastrado dentro da COPLACANA; conversa com a OKUBO e a Tróia em cópia.
 {

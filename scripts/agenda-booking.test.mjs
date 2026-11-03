@@ -1,7 +1,7 @@
 // Link público de agendamento (§139): horários livres em Brasília, almoço, aviso mínimo, dias da semana, o que ocupa a agenda (sem
 // vazar título) e o pedido de quem marca (e-mails obrigatórios, Meet escolhido). Puro. Rodar: node scripts/agenda-booking.test.mjs
 import assert from 'node:assert/strict';
-import { computeSlots, busyFromEvents, parseBooking, cleanSettings, cleanRanges, newBookingToken, brDay, DEFAULTS, MAX_RANGES } from '../server/agendaBooking.js';
+import { computeSlots, busyFromEvents, parseBooking, cleanSettings, cleanRanges, newBookingToken, brDay, DEFAULTS, MAX_RANGES, MAX_GUESTS } from '../server/agendaBooking.js';
 
 let n = 0;
 const ok = (name, fn) => { fn(); n += 1; console.log('ok  ', name); };
@@ -77,7 +77,8 @@ ok('pedido: nome, assunto, ao menos um e-mail válido, Meet escolhido; campo-isc
   assert.match(parseBooking({ ...base, name: 'A' }).error, /nome/);
   assert.match(parseBooking({ ...base, subject: '' }).error, /assunto/);
   assert.match(parseBooking({ ...base, website: 'http://spam' }).error, /recusado/);
-  assert.match(parseBooking({ ...base, emails: Array.from({ length: 21 }, (_, i) => `p${i}@x.com`) }).error, /20/);
+  assert.equal(MAX_GUESTS, 5);
+  assert.match(parseBooking({ ...base, emails: 'a@x.com, b@x.com, c@x.com, d@x.com, e@x.com, f@x.com' }).error, /No máximo 5/);
 });
 
 ok('token do link: 24 caracteres seguros, diferentes a cada vez', () => {

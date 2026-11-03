@@ -10,8 +10,9 @@ import { noteToText } from './richNote.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { pool, blankPersonalBoard } from './db.js';
-import { requireAuth, rowToUser } from './auth.js';
+import { findUserById, requireAuth, rowToUser, sessionProblem } from './auth.js';
 import { canAccessProject } from './routes.js';
+import { isClientUser } from './clientView.js';
 import { syncCardEvents } from './personalActivity.js';
 import { getConnectionStatus, listEvents } from './googleCalendar.js';
 import { todayInSp } from './widgetSummary.js';
@@ -87,6 +88,7 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
     const scope = Object.prototype.hasOwnProperty.call(SCOPES, (req.body || {}).scope) ? req.body.scope : null;
     let days = VALID_DAYS.includes(Number((req.body || {}).days)) ? Number(req.body.days) : (scope === 'write_all' ? 90 : 180);
     if (scope === 'write_all') days = Math.min(days, WRITE_ALL_MAX_DAYS);
+    if (isClientUser(req.user)) return res.status(403).json({ message: 'Chaves de API são só para a equipe PRICETAX.' });
     if (!name) return res.status(400).json({ message: 'Dê um nome ao token (ex.: "Claude Code do XPED").' });
     if (!scope) return res.status(400).json({ message: 'Escolha o que o token pode fazer.' });
     if (scope === 'write_all' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que edita tudo.' });
@@ -175,10 +177,10 @@ async function bearer(req, res, next) {
     const { rows } = await pool.query(`SELECT * FROM api_tokens WHERE token_hash=$1`, [hash]);
     const t = rows[0];
     if (!t || t.revoked_at || new Date(t.expires_at) < new Date()) return unauthorized(req, res, 'Chave inválida, revogada ou vencida. Peça uma nova a quem tem acesso ao painel (Meu perfil › Integrações).');
-    const u = await pool.query('SELECT * FROM users WHERE id=$1', [t.user_id]);
-    const row = u.rows[0];
+    const row = await findUserById(t.user_id);
     if (!row) return unauthorized(req, res, 'Chave inválida.');
-    if (row.blocked || (row.expires_at && new Date(row.expires_at) < new Date())) return res.status(403).json({ message: 'Acesso do usuário indisponível.' });
+    // Mesmas regras da sessão (bloqueio, vencimento, base suspensa); usuário de cliente não usa a API (a tela já barra transcrição e correção de reunião para ele).
+    if (sessionProblem(row, null) || isClientUser(rowToUser(row))) return res.status(403).json({ message: 'Acesso do usuário indisponível.' });
     if (!t.last_used_at || Date.now() - new Date(t.last_used_at).getTime() > 60000) pool.query('UPDATE api_tokens SET last_used_at=now() WHERE id=$1', [t.id]).catch(() => {});
     req.apiToken = t;
     req.apiHash = hash;

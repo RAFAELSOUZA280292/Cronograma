@@ -16,6 +16,9 @@ ok('webcal vira https', normalizeFeedUrl('webcal://calendar.google.com/x/basic.i
 ok('http recusado', normalizeFeedUrl('http://exemplo.com/a.ics') === null);
 ok('porta estranha recusada', normalizeFeedUrl('https://exemplo.com:8443/a.ics') === null);
 ok('usuário na URL recusado', normalizeFeedUrl('https://a:b@exemplo.com/a.ics') === null);
+ok('IP digitado direto recusado (não passa pelo lookup protegido)', ['https://10.0.0.1/a.ics', 'https://127.0.0.1/', 'https://[::1]/x', 'https://169.254.169.254/'].every((u) => normalizeFeedUrl(u) === null));
+ok('IPv6 que embrulha IPv4 interno é privado', ['::a00:1', '64:ff9b::a00:1', '::ffff:7f00:1', 'fec0::1'].every(isPrivateIp));
+ok('IP público passa', !isPrivateIp('8.8.8.8') && !isPrivateIp('2001:4860:4860::8888'));
 ok('lixo recusado', normalizeFeedUrl('nada') === null);
 for (const ip of ['127.0.0.1', '10.0.0.5', '172.20.1.1', '192.168.0.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1']) ok(`IP interno ${ip}`, isPrivateIp(ip));
 for (const ip of ['8.8.8.8', '142.250.79.14', '2800:3f0:4001:80a::200e']) ok(`IP público ${ip}`, !isPrivateIp(ip));

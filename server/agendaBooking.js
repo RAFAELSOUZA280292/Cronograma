@@ -39,7 +39,9 @@ function legacyRanges(b) {
   if (b.lunch === false || a >= 13 * 60 || z <= 12 * 60) return cleanRanges([{ start: b.dayStart, end: b.dayEnd }]);
   return cleanRanges([{ start: b.dayStart, end: '12:00' }, { start: '13:00', end: b.dayEnd }]);
 }
-export const MAX_GUESTS = 20;
+// Pouco de propósito: o convite sai da conta Google do dono para os e-mails digitados por quem tem o link (freio contra spam com remetente PRICETAX).
+export const MAX_GUESTS = 5;
+const MAX_BOOKINGS_PER_DAY = 10;
 export const newBookingToken = () => crypto.randomBytes(18).toString('base64url'); // 24 caracteres, 144 bits
 
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -130,7 +132,9 @@ async function ownerByToken(token) {
   if (!TOKEN_RE.test(String(token || ''))) return null;
   const { rows } = await pool.query(
     `SELECT id, org_id, name, email, username, preferences->'agendaBooking' AS b FROM users
-      WHERE preferences->'agendaBooking'->>'token' = $1 AND COALESCE((preferences->'agendaBooking'->>'enabled')::boolean, false) = true AND COALESCE(blocked, false) = false LIMIT 1`,
+      WHERE preferences->'agendaBooking'->>'token' = $1 AND COALESCE((preferences->'agendaBooking'->>'enabled')::boolean, false) = true AND COALESCE(blocked, false) = false
+        AND (expires_at IS NULL OR expires_at >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)
+        AND COALESCE((SELECT o.status FROM organizations o WHERE o.id = users.org_id), 'active') = 'active' LIMIT 1`,
     [token],
   );
   return rows[0] || null;
@@ -211,7 +215,7 @@ publicRouter.post('/:token/book', async (req, res, next) => {
     if (error) return res.status(400).json({ message: error });
     // Só pedido completo conta no freio de marcações (errar o formulário não bloqueia ninguém).
     if (limited(`b:${ip}`, 5, 3600000)) return res.status(429).json({ message: 'Muitos agendamentos seguidos deste endereço. Tente de novo mais tarde.' });
-    if (limited(`t:${req.params.token}`, 30, DAY)) return res.status(429).json({ message: 'Esta agenda recebeu muitos pedidos hoje. Tente amanhã ou fale com a pessoa por e-mail.' });
+    if (limited(`t:${req.params.token}`, MAX_BOOKINGS_PER_DAY, DAY)) return res.status(429).json({ message: 'Esta agenda recebeu muitos pedidos hoje. Tente amanhã ou fale com a pessoa por e-mail.' });
     const settings = cleanSettings((owner.b && owner.b.settings) || {});
     const now = Date.now();
     const busy = await ownerBusy(owner.id, settings, now);

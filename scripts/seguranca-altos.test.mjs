@@ -194,7 +194,10 @@ try {
   ok('A4: cliente recebe o resto da reunião e das tarefas', seen.meetings[0].title === 'Reunião' && seen.meetings[0].actionItems[0].id === 'mai1');
   const staffView = await call(adm.cookie, 'GET', '/api/projects');
   const sv = (staffView.json.projects || []).find((x) => x.id === PID);
-  ok('equipe continua vendo transcrição e log', sv && sv.meetings[0].transcript === 'TRANSCRICAO INTERNA' && sv.log.length === 1);
+  // Desde o §138 a lista vai sem o texto da transcrição (a reunião busca ao abrir); a equipe segue lendo o texto pela rota própria.
+  const tr = await call(adm.cookie, 'GET', `/api/projects/${PID}/meetings/${sv && sv.meetings[0].id}/transcript`);
+  ok('equipe continua vendo transcrição e log', sv && sv.meetings[0].transcriptStripped === true && sv.log.length === 1 && tr.status === 200 && JSON.stringify(tr.json).includes('TRANSCRICAO INTERNA'), [sv && sv.meetings[0].transcriptStripped, tr.status]);
+  ok('cliente NÃO lê o texto pela rota da transcrição', (await call(cc.cookie, 'GET', `/api/projects/${PID}/meetings/${sv && sv.meetings[0].id}/transcript`)).status >= 400);
   const mine = JSON.parse(JSON.stringify(seen));
   mine.company.cnpj = '11.111.111/0001-11'; mine.ownerIds = ['invasor']; mine.principalOwnerId = 'invasor'; mine.involvedCompanyIds = ['x'];
   mine.activities[0].status = 'done'; mine.meetings[0].actionItems[0].status = 'concluido';
