@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-645 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+648 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (30)
+## 2026-11-03 (33)
 
+- `4b88027` 17:04 — E-mail: arrastar destinatário entre Para, Cc e Cco e mencionar com @ no corpo
+- `5691eea` 16:37 — Cérebro: Rafael confirmou em produção o Dock com um app por módulo (§158)
+- `995d5ab` 16:29 — Cérebro: Dock do Mac com um app por módulo (§158)
 - `9061b00` 16:28 — Dock do Mac: cada módulo vira um app próprio (manifesto por módulo e ícone de 512 px)
 - `7408e32` 16:19 — Cérebro: limite do Safari — Preferidos guardam um ícone por site (§158)
 - `3303d48` 15:58 — Cérebro: ícone de cada módulo nos favoritos e na aba (§158)
