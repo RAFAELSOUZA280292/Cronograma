@@ -120,7 +120,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
 | `server/mail.js` | 704 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
 | `server/mailCache.js` | 46 | Memória curta da Caixa de e-mail (Fase 2 da varredura de 02/11, velocidade). Só na memória do processo, nunca no banco: |
-| `server/mailCompose.js` | 493 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
+| `server/mailCompose.js` | 503 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
 | `server/mailLinks.js` | 462 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
 | `server/mailLinksCore.js` | 329 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
 | `server/mailLinksSchema.js` | 65 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Só aditivo; chamado por initDb(). O índice guarda SÓ metadados (ids, assunto, |
@@ -363,10 +363,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/mail/InviteCard.jsx` | 152 | Cartão de convite de reunião na leitura do e-mail (2026-11-02): convite novo ou alterado, cancelamento, resposta de alguém e |
 | `src/mail/MailFrame.jsx` | 34 | Corpo de e-mail desenhado num iframe sem script (sandbox), com o HTML já higienizado no servidor. Usado na leitura, |
 | `src/mail/MailLinks.jsx` | 344 | E-mail ligado ao CRM e às Empresas (§130). Selo da conversa ("Cliente · KUHN", "Lead · OKUBO · Proposta", "Parceiro · Tróia"), |
-| `src/mail/MailScreen.jsx` | 1112 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
+| `src/mail/MailScreen.jsx` | 1127 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
 | `src/mail/SidePanel.jsx` | 233 | Painel lateral da Caixa de e-mail (2026-11-03, §151; Rafael mostrou a barra do Google: "preciso do mesmo no nosso e-mail… ver a |
 | `src/mail/SignatureDialog.jsx` | 142 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
-| `src/mail/mail.css` | 382 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
+| `src/mail/mail.css` | 386 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
 | `src/mail/mailImage.js` | 94 | Imagens da Caixa de e-mail (pacote de personalização, 2026-11-02): imagem colada/arrastada no corpo e imagem própria da |
 | `src/mail/mailIntent.js` | 22 | Pedidos de outras telas para a Caixa de e-mail (sem prop drilling): abrir uma conversa (§130) ou escrever para alguém já |
 | `src/mail/mailLinks.css` | 55 | E-mail ligado ao CRM (§130): selo, faixa "Empresa fora do CRM", aba E-mails e bloco do cockpit. Só tokens do tema. */ |

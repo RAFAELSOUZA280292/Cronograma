@@ -2,10 +2,14 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-631 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+635 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (16)
+## 2026-11-03 (20)
 
+- `c23f1fe` 12:35 — E-mail: ao arrastar para uma pasta, cartãozinho com o assunto abaixo do cursor (não a linha inteira)
+- `2439f90` 12:22 — E-mail: remetente sai com o nome da conta, não com o "Atenciosamente," da assinatura
+- `f623d25` 12:11 — Cérebro: Rafael confirmou em produção os destinatários em cartões (§153)
+- `eb32fbb` 12:04 — Cérebro: destinatários em cartões (§153, E-20)
 - `06fd3f9` 12:02 — E-mail: Para, Cc e Cco em cartões, como no Gmail
 - `9ab00f7` 11:53 — Cérebro: Rafael confirmou em produção Responder a todos e Encaminhar (§152)
 - `716b39e` 11:38 — Cérebro: Responder a todos e Encaminhar (§152, E-19)
