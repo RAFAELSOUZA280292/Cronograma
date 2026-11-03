@@ -103,7 +103,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/googleMail.js` | 301 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/icalFeed.js` | 315 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
-| `server/index.js` | 246 |  |
+| `server/index.js` | 255 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -225,7 +225,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/linkSync.js` | 231 | Sincronia de conclusão entre tarefa de reunião e atividade do cronograma (2026-10-19, pedido do Rafael: "uma vez que está vinculado e validado pelo usuário, concluiu em um, mata em outro"). |
 | `shared/mailAttachments.js` | 53 | Anexos que o Gmail bloqueia por segurança (pedido do Rafael em 2026-11-02: "anexar tudo que é possível" — e, quando não |
 | `shared/mailLabelColors.js` | 26 | Cores das pastas da Caixa de e-mail (2026-11-02, pacote de personalização). A pasta é um marcador do Gmail e o Gmail só |
-| `shared/moduleIcons.js` | 22 | Ícone de cada módulo (2026-11-03, §158): o servidor põe o do endereço aberto no index.html (o Safari tira o ícone do favorito da |
+| `shared/moduleIcons.js` | 44 | Ícone de cada módulo (2026-11-03, §158): o servidor põe o do endereço aberto no index.html (o Safari tira o ícone do favorito da |
 | `shared/panelLinks.js` | 40 | Links internos do painel (02/11/2026, pedido do Rafael: "falta a possibilidade de poder clicar e ir até as pendências"). A RENATA |
 | `shared/pauta.js` | 124 | "Pauta da reunião" (2026-10-20, pedido do Rafael): um item de TRABALHO que será tratado numa reunião (subatividade do tipo Reunião da mesma atividade) fica vinculado a ela |
 | `shared/period.js` | 25 | "A atividade estica sozinha" (2026-10-20, pedido do Rafael após auditoria da ALCAST): quando a data de uma subatividade muda (ou entra subatividade nova) e cai fora do período |
@@ -238,7 +238,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3860 |  |
+| `src/App.jsx` | 3865 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
 | `src/agenda/Agenda.jsx` | 737 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/AgendaExtras.jsx` | 212 | Peças da Agenda "como a do Google", parte 2 (2026-11-02, §138): Criar › Tarefa e Ausente, detalhe de tarefa e de compromisso de |
