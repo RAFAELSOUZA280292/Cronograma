@@ -57,7 +57,7 @@ Pedidos típicos do Rafael que mandam para este documento:
 ### Front (`src/crm/`)
 | Arquivo | O que é |
 |---|---|
-| `CrmScreen.jsx` | Casca: menu (Visão geral, Agenda, Negócios, Empresas, Contatos, Produtos), botões "Criar …", gavetas de empresa/negócio, `crm.me()` (capacidades). |
+| `CrmScreen.jsx` | Casca: menu (Painel do CRM, Minhas atividades, Negócios, Contas, Contatos, Produtos — nomes de 03/11, §150; ids `overview`, `agenda`, `companies`), botões "Criar …", gavetas de empresa/negócio, `crm.me()` (capacidades). |
 | `crmApi.js` | Objeto `crm` com todas as chamadas (`/api/crm`). Só monta URL/corpo; **regra e permissão ficam no servidor**. |
 | `crmMeta.js` | Rótulos, formatadores (`fmtMoney`, `fmtCnpj`, `waHref`), cores de tag (`tagColor`) e o CSS inteiro (`CRM_CSS`). |
 | `DealsPage.jsx` | Quadro Kanban + Lista, filtros, visões salvas, export Excel, botões Funis / Importar negócios / Migrar do PipeRun. |
@@ -65,11 +65,11 @@ Pedidos típicos do Rafael que mandam para este documento:
 | `DealDrawer.jsx`, `DealForm.jsx`, `CloseDealDialog.jsx`, `DealTags.jsx`, `InlineCells.jsx` | Ficha, formulário, diálogo de ganho/perda (motivo obrigatório), tags, edição direta na célula. |
 | `CompanyDrawer.jsx`, `CompanyForm.jsx`, `CompaniesPage.jsx`, `ContactForm.jsx`, `ContactsPage.jsx` | Ficha 360 da empresa, cadastro, listas. Aba Auditoria só se `caps.remove`. |
 | `AgendaPage.jsx`, `ActivityForm.jsx`, `ActivityList.jsx`, `FollowUpQueue.jsx` | Agenda (Atrasadas/Hoje/7 dias/Depois), formulário, lista, fila de follow-up (uma atividade por vez). |
-| `OverviewPage.jsx`, `OverviewLenses.jsx`, `overviewLogic.js` | Visão geral por função (painéis Meu dia, Time, Receita, Contas). **Meu dia** tem ação dentro da linha (Agendar, Concluir), teclado (↑ ↓ A C), "Prioridades do dia" e ordem por prioridade com o motivo escrito (regra pura em `overviewLogic.js`, sem IA; `PROJECT_CONTEXT.md` §116zi). |
+| `OverviewPage.jsx`, `OverviewLenses.jsx`, `overviewLogic.js` | Painel do CRM por função (painéis Minha fila, Time, Receita, Cadastro — eram Meu dia e Contas até 03/11). **Meu dia** tem ação dentro da linha (Agendar, Concluir), teclado (↑ ↓ A C), "Prioridades do dia" e ordem por prioridade com o motivo escrito (regra pura em `overviewLogic.js`, sem IA; `PROJECT_CONTEXT.md` §116zi). |
 | `SavedViews.jsx`, `TagFilter.jsx` | Visões salvas; filtro de várias tags (E). |
 | `FunnelsAdmin.jsx`, `CadenceEditor.jsx`, `ProductsPage.jsx` | Configuração de funis/etapas/automação, cadências, catálogo. |
 | `ImportWizard.jsx`, `DealImportWizard.jsx`, `importMapping.js`, `BootstrapDialog.jsx`, `PipeRunMigration.jsx` | Assistentes de importação e migração. |
-| `GlobalSearch.jsx`, `RenataAsk.jsx`, `ContactLinks.jsx`, `ui.jsx` | Busca do topo, "Perguntar à RENATA", ligar/WhatsApp, peças de UI. |
+| `GlobalSearch.jsx`, `RenataAsk.jsx`, `ContactLinks.jsx`, `ui.jsx` | Campo de busca que abre a busca do topo (evento `shell:search`, §150), "Perguntar à RENATA", ligar/WhatsApp, peças de UI. |
 | `src/ui/DateTimeFields.jsx` | `DateField`, `TimeField`, `DatePopButton` (calendário que não é cortado; ver "Bugs"). |
 
 ## Como funciona (passo a passo)

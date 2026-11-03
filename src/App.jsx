@@ -2026,7 +2026,7 @@ function AppScreens({ shellRef, bump }) {
       const open = (patch) => { goToWorkspace('crm'); setPendingCrmOpen(patch); };
       return [
         ...(r.deals || []).slice(0, 6).map((d) => ({ id: `crm-d-${d.id}`, group: 'Negócios (CRM)', label: d.title, hint: [d.companyName, d.stageName].filter(Boolean).join(' · '), icon: Briefcase, run: () => open({ dealId: d.id }) })),
-        ...(r.companies || []).slice(0, 4).map((c) => ({ id: `crm-c-${c.id}`, group: 'Empresas (CRM)', label: c.legalName, hint: [c.tradeName, c.cnpj].filter(Boolean).join(' · '), icon: Building2, run: () => open({ companyId: c.id }) })),
+        ...(r.companies || []).slice(0, 4).map((c) => ({ id: `crm-c-${c.id}`, group: 'Contas (CRM)', label: c.legalName, hint: [c.tradeName, c.cnpj].filter(Boolean).join(' · '), icon: Building2, run: () => open({ companyId: c.id }) })),
         ...(r.contacts || []).slice(0, 4).map((c) => ({ id: `crm-k-${c.id}`, group: 'Contatos (CRM)', label: c.name || 'Contato', hint: [c.companyName, c.email].filter(Boolean).join(' · '), icon: UsersGlyph, run: () => open({ companyId: c.companyId }) })),
       ];
     };
@@ -2070,7 +2070,7 @@ function AppScreens({ shellRef, bump }) {
       act('new-company', 'Criar empresa', 'CRM', 'nova cadastrar cliente prospect', Plus, 'new-company');
       act('new-contact', 'Criar contato', 'CRM', 'novo pessoa telefone whatsapp', Plus, 'new-contact');
       act('queue', 'Abrir a fila de follow-ups', 'CRM · um por vez, do mais atrasado', 'fila atrasadas hoje follow-up concluir proximo', ListChecks, 'queue');
-      act('agenda', 'Agenda do CRM', 'CRM', 'atividades atrasadas hoje', CalendarCheck, 'page:agenda');
+      act('agenda', 'Minhas atividades do CRM', 'CRM', 'agenda atividades atrasadas hoje', CalendarCheck, 'page:agenda');
       act('deals', 'Negócios do CRM', 'CRM', 'funil quadro lista pipeline', Briefcase, 'page:deals');
     }
     if (hasPersonal && personalBoard) {

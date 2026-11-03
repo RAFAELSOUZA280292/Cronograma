@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 9277 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 9288 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -225,3 +225,4 @@ O `PROJECT_CONTEXT.md` tem 9277 linhas (a memória cronológica de cada decisão
 | 9248 | 147. Varredura de 02/11 — Fase 3: usabilidade, parte sem decisão pendente (2026-11-03, madrugada; plano aprov… | - Motivo do botão cinza no toque (src/ui/index.jsx): Button/IconButton desligados com disabledReason não usam mais disabled; ficam aria-disabled="tru… |
 | 9261 | 148. [E-17] Cota do Gmail por pessoa: a Caixa não para quando o Google pede pausa (2026-11-03, manhã; Rafael,… | - Causa: o Google limita cada caixa a 15.000 unidades por minuto (403 Quota exceeded … 'Units per minute per user', três vezes às 09h41 de Brasília) … |
 | 9272 | 149. Título da aba do navegador pelo módulo aberto (2026-11-03, manhã; Rafael, print da aba "(13) PRICETAX — … | - Agora: "Início · PRICETAX", "E-mail · PRICETAX", "CRM · PRICETAX", "Agenda · PRICETAX"… (rótulo do SHELLMODES); com uma empresa aberta, "KUHN · Emp… |
+| 9278 | 150. Nomes repetidos no CRM e uma busca só (2026-11-03; Rafael aprovou a proposta da Fase 3: "Sim, aplique") | - Por quê: "Agenda", "Empresas" e "Visão geral" já eram módulos do painel e repetiam dentro do CRM com outro sentido; "Meu dia" eram três coisas; "No… |

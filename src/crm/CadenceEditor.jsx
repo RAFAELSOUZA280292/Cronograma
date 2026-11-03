@@ -26,7 +26,7 @@ export default function CadenceEditor({ pipeline }) {
   }
   async function toggle(c) { try { await crm.updateCadence(c.id, { active: !c.active, steps: c.steps }); await load(); } catch (e) { notify(e.message || 'Não foi possível alterar.', { tone: 'error' }); } }
   async function remove(c) {
-    if (!(await askConfirm({ title: `Remover a cadência da etapa "${c.stageName}"?`, message: 'Os passos já agendados continuam na Agenda; só deixa de agendar os próximos.', confirmLabel: 'Remover', danger: true }))) return;
+    if (!(await askConfirm({ title: `Remover a cadência da etapa "${c.stageName}"?`, message: 'Os passos já agendados continuam em Minhas atividades; só deixa de agendar os próximos.', confirmLabel: 'Remover', danger: true }))) return;
     try { await crm.deleteCadence(c.id); await load(); } catch (e) { notify(e.message || 'Não foi possível remover.', { tone: 'error' }); }
   }
   const free = stages.filter((s) => !mine.some((c) => c.stageId === s.id));

@@ -2,10 +2,12 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-621 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+623 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (6)
+## 2026-11-03 (8)
 
+- `a9b60f2` 11:09 — Cérebro: Rafael confirmou em produção o título da aba pelo módulo (§149)
+- `5d3dff4` 11:06 — Cérebro: título da aba pelo módulo (§149)
 - `d80da0e` 11:04 — Título da aba do navegador pelo módulo aberto (E-mail · PRICETAX, CRM · PRICETAX; empresa aberta na frente)
 - `558b4b4` 09:57 — Cérebro: Rafael confirmou em produção a correção da cota do Gmail (§148)
 - `aab759d` 09:53 — Cérebro: cota do Gmail por pessoa (§148, E-17)

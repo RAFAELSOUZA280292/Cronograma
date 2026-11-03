@@ -146,8 +146,8 @@ export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgend
         </section>
       )}
       <div className="crm-cards">
-        <Kpi icon={CalendarCheck} accent={BLUE} value={ac.mineToday} label="Para hoje" onClick={onGoAgenda} hint="Abrir a agenda" />
-        <Kpi icon={Clock} value={ac.mineOverdue} label="Atrasadas" tone={ac.mineOverdue ? RED : undefined} onClick={onGoAgenda} hint="Abrir a agenda" />
+        <Kpi icon={CalendarCheck} accent={BLUE} value={ac.mineToday} label="Para hoje" onClick={onGoAgenda} hint="Abrir Minhas atividades" />
+        <Kpi icon={Clock} value={ac.mineOverdue} label="Atrasadas" tone={ac.mineOverdue ? RED : undefined} onClick={onGoAgenda} hint="Abrir Minhas atividades" />
         <Kpi icon={Layers} value={dl.noNextStepCount} label="Negócios sem próximo passo" sub="seus, em aberto, sem atividade agendada" tone={dl.noNextStepCount ? AMBER : undefined} onClick={mineDeals({ attention: 'nonext' })} hint="Ver na lista de negócios" />
         <Kpi icon={AlertTriangle} value={dl.lateStepCount} label="Com passo atrasado" tone={dl.lateStepCount ? RED : undefined} onClick={mineDeals({ attention: 'late' })} hint="Ver na lista de negócios" />
       </div>
@@ -219,7 +219,7 @@ export function TeamLens({ data, onOpenDeal, onGoDeals, onGoAgenda }) {
         <Kpi featured icon={CircleDollarSign} accent={PURPLE} value={money(dl.weightedValue)} label="Valor ponderado" sub="valor × probabilidade da etapa" />
         <Kpi icon={BadgeCheck} accent={GREEN} value={money(dl.wonMonthValue)} label="Ganho no mês" tone={dl.wonMonthCount ? GREEN : undefined} sub={`${dl.wonMonthCount} ${dl.wonMonthCount === 1 ? 'negócio' : 'negócios'} · ${dl.lostMonthCount} perdido(s)`} />
         <Kpi icon={Percent} accent={AMBER} value={dl.conversion90 == null ? '—' : `${dl.conversion90}%`} label="Conversão (90 dias)" sub={dl.closed90 ? `${dl.closed90} negócios fechados` : 'ainda sem fechamentos'} />
-        <Kpi icon={Clock} value={ac.overdueCount} label="Atividades atrasadas" tone={ac.overdueCount ? RED : undefined} sub={`${ac.todayCount} para hoje · ${ac.openCount} em aberto`} onClick={onGoAgenda} hint="Abrir a agenda" />
+        <Kpi icon={Clock} value={ac.overdueCount} label="Atividades atrasadas" tone={ac.overdueCount ? RED : undefined} sub={`${ac.todayCount} para hoje · ${ac.openCount} em aberto`} onClick={onGoAgenda} hint="Abrir Minhas atividades" />
         <Kpi icon={UserX} value={dl.unownedCount} label="Negócios sem responsável" tone={dl.unownedCount ? AMBER : undefined} sub={dl.unownedCount ? money(dl.unownedValue) : 'todos têm dono'} onClick={dl.unownedCount ? () => onGoDeals({ ownerId: 'none', view: 'list' }) : undefined} hint="Ver na lista de negócios" />
       </div>
 

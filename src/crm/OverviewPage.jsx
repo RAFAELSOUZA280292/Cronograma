@@ -11,10 +11,10 @@ import { CompleteDialog } from './ActivityList.jsx';
 import { MineLens, TeamLens, RevenueLens, AccountsLens } from './OverviewLenses.jsx';
 
 const LENS_META = {
-  mine: ['Meu dia', 'Atividades de hoje e atrasadas, negócios sem próximo passo e o seu funil.'],
+  mine: ['Minha fila', 'Atividades de hoje e atrasadas, negócios sem próximo passo e o seu funil.'],
   team: ['Time', 'Funil do time, carga por responsável e negócios que precisam de ajuda.'],
   revenue: ['Receita', 'MRR, previsão de fechamento e o que mais pesa no funil.'],
-  accounts: ['Contas', 'Empresas e contatos cadastrados: completude e quem precisa de contato.'],
+  accounts: ['Cadastro', 'Empresas e contatos cadastrados: completude e quem precisa de contato.'],
 };
 
 let lastLens = ''; // lembra a escolha enquanto a pessoa navega pelo CRM nesta sessão
@@ -113,7 +113,7 @@ export default function OverviewPage({ caps, options, currentUserId, refreshKey,
   return (
     <div className="crm-ov" onKeyDown={onKeys}>
       <div className="crm-page-head">
-        <div><h1 className="crm-h1">Visão geral</h1><div className="crm-sub">{meta[1]}</div></div>
+        <div><h1 className="crm-h1">Painel do CRM</h1><div className="crm-sub">{meta[1]}</div></div>
         <div className="crm-actions">
           {updatedAt && <span className="crm-fresh" aria-live="polite">Atualizado às {hhmm(updatedAt)}</span>}
           <button type="button" className="crm-btn" onClick={reload} disabled={refreshing} aria-busy={refreshing}><RefreshCw size={13} className={refreshing ? 'crm-spin' : undefined} aria-hidden="true" /> {refreshing ? 'Atualizando…' : 'Atualizar'}</button>

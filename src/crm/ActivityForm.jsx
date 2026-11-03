@@ -88,7 +88,7 @@ function ActivityForm({ initial, company, prefill, options, currentUserId, onSav
   }
 
   return (
-    <Modal title={editing ? 'Editar atividade' : (done ? 'Registrar interação realizada' : 'Nova atividade')} onClose={onCancel} width={700} dirty={dirty}>
+    <Modal title={editing ? 'Editar atividade' : (done ? 'Registrar interação realizada' : 'Nova atividade do CRM')} onClose={onCancel} width={700} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="Empresa *" full>
           {picked ? (

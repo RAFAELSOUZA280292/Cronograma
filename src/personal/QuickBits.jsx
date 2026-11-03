@@ -76,11 +76,11 @@ export function QuickNew({ columns, enabled, onCreate }) {
   return (
     <div className="qb-new" ref={wrapRef}>
       <style>{QUICK_CSS}</style>
-      <button type="button" className="qb-new-btn" onClick={() => { setJustCreated(''); setOpen((v) => !v); }} aria-expanded={open} aria-keyshortcuts="N" title="Nova atividade (tecla N)">
-        <Plus size={14} aria-hidden="true" /> Nova atividade <kbd aria-hidden="true">N</kbd>
+      <button type="button" className="qb-new-btn" onClick={() => { setJustCreated(''); setOpen((v) => !v); }} aria-expanded={open} aria-keyshortcuts="N" title="Nova tarefa (tecla N)">
+        <Plus size={14} aria-hidden="true" /> Nova tarefa <kbd aria-hidden="true">N</kbd>
       </button>
       {open && (
-        <div className="qb-pop" role="group" aria-label="Nova atividade" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}>
+        <div className="qb-pop" role="group" aria-label="Nova tarefa" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}>
           <label htmlFor="qb-title">O que precisa ser feito?</label>
           <input id="qb-title" ref={inputRef} type="text" value={title} placeholder="Digite e aperte Enter" onChange={(e) => { setTitle(e.target.value); setJustCreated(''); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
           <label htmlFor="qb-col">Coluna</label>

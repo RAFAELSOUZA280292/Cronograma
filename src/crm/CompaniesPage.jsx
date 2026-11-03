@@ -47,7 +47,7 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
   return (
     <div>
       <div className="crm-page-head">
-        <div><h1 className="crm-h1">Empresas</h1><div className="crm-sub">Toda empresa é uma conta: contatos, projetos e histórico ficam presos a ela.</div></div>
+        <div><h1 className="crm-h1">Contas</h1><div className="crm-sub">Cada conta é uma empresa: contatos, negócios, projetos e histórico ficam presos a ela.</div></div>
         <div className="crm-actions">
           {caps.import && <button type="button" className="crm-btn" onClick={onImport}><Upload size={14} /> Importar planilha</button>}
           {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={onNewCompany}><Plus size={14} /> Criar empresa</button>}

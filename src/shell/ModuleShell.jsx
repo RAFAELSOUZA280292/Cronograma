@@ -112,8 +112,11 @@ export default function ModuleShell({
         setPalette((v) => !v);
       }
     }
+    // O campo de busca do CRM abre esta mesma busca (uma só no painel, 03/11).
+    const onOpenSearch = () => setPalette(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('shell:search', onOpenSearch);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('shell:search', onOpenSearch); };
   }, []);
 
   const cur = modes.find((m) => m.key === current) || null;

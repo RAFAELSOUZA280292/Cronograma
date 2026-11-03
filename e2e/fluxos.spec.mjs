@@ -142,7 +142,7 @@ test('janelas do CRM (U2): uma só janela do app, rascunho protegido, clicar for
   expect(co.status, JSON.stringify(co.body)).toBe(201);
 
   await page.goto('/crm');
-  await page.getByRole('button', { name: 'Empresas' }).first().click();
+  await page.getByRole('button', { name: 'Contas' }).first().click();
   const row = page.getByRole('row').filter({ hasText: `Janela E2E ${tag}` });
   await row.focus();
   await page.keyboard.press('Enter'); // abre a ficha (painel lateral)

@@ -41,7 +41,7 @@ export default function AgendaPage({ queueSignal, onQueueConsumed, caps, options
   return (
     <div>
       <div className="crm-page-head">
-        <div><h1 className="crm-h1">Agenda</h1><div className="crm-sub">O que precisa ser feito, por urgência. Concluir uma ligação, reunião ou e-mail conta como interação com a empresa.</div></div>
+        <div><h1 className="crm-h1">Minhas atividades</h1><div className="crm-sub">O que precisa ser feito, por urgência. Concluir uma ligação, reunião ou e-mail conta como interação com a empresa.</div></div>
         <div className="crm-actions">{caps.write && (c ? c.overdue + c.today : 0) > 0 && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setQueue(true)}><ListChecks size={14} /> Fila de follow-ups ({c.overdue + c.today})</button>}{caps.write && <button type="button" className="crm-btn" onClick={() => onNewActivity({})}><Plus size={14} /> Criar atividade</button>}</div>
       </div>
 

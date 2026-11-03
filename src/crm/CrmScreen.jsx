@@ -24,7 +24,8 @@ import ContactForm from './ContactForm.jsx';
 import ImportWizard from './ImportWizard.jsx';
 import BootstrapDialog from './BootstrapDialog.jsx';
 
-const NAV = [['overview', 'Visão geral', LayoutDashboard], ['agenda', 'Agenda', CalendarCheck], ['deals', 'Negócios', Kanban], ['companies', 'Empresas', Building2], ['contacts', 'Contatos', Users], ['products', 'Produtos', Package]];
+// Nomes (Rafael, 03/11): "Agenda", "Empresas" e "Visão geral" já existiam fora do CRM com outro sentido.
+const NAV = [['overview', 'Painel do CRM', LayoutDashboard], ['agenda', 'Minhas atividades', CalendarCheck], ['deals', 'Negócios', Kanban], ['companies', 'Contas', Building2], ['contacts', 'Contatos', Users], ['products', 'Produtos', Package]];
 
 export default function CrmScreen({ onOpenRenata, currentUser, onExit, onLogout, theme, onToggleTheme, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead, pendingOpen, onPendingOpenConsumed, onOpenProject }) {
   const [page, setPage] = useState(() => readHistoryValue('crmPage', 'overview'));
@@ -48,7 +49,7 @@ export default function CrmScreen({ onOpenRenata, currentUser, onExit, onLogout,
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
   // A RENATA sabe em que parte do CRM a pessoa está e qual registro está aberto (§101).
   useEffect(() => {
-    const labels = { overview: 'Visão geral', agenda: 'Agenda', deals: 'Negócios', companies: 'Empresas', contacts: 'Contatos', products: 'Produtos' };
+    const labels = { overview: 'Painel do CRM', agenda: 'Minhas atividades', deals: 'Negócios', companies: 'Contas (empresas)', contacts: 'Contatos', products: 'Produtos' };
     const entity = dealDrawer ? { type: 'negócio', id: dealDrawer, title: '' } : drawer ? { type: 'empresa do CRM', id: drawer.id, title: '' } : null;
     setScreenContext({ module: 'CRM', view: labels[page] || page, entity });
   }, [page, dealDrawer, drawer]);
@@ -101,7 +102,7 @@ export default function CrmScreen({ onOpenRenata, currentUser, onExit, onLogout,
       <div className="crm-shell">
         <div className="crm-topbar">
           <div className="crm-brand"><Briefcase size={18} color="#F5C400" /> CRM <span className="crm-muted" style={{ fontWeight: 600 }}>· {caps.roleLabel}</span></div>
-          <GlobalSearch onPickCompany={openCompany} onPickDeal={openDeal} />
+          <GlobalSearch />
           <div className="crm-spacer" />
           {caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm({})}><Plus size={14} /> Criar atividade</button>}
           {caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({})}><Plus size={14} /> Criar negócio</button>}

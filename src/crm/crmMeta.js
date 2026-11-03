@@ -190,6 +190,10 @@ export const CRM_CSS = `
 
   .crm-search { position:relative; width:min(360px, 100%); }
   .crm-search input { width:100%; padding:8px 12px 8px 32px; border-radius:9px; font-size:var(--fs-sm); }
+  .crm-search-open { display:flex; align-items:center; gap:var(--sp-2); min-height:36px; padding:8px 10px 8px 32px; border-radius:9px; border:1px solid var(--border-2); background:var(--bg-2); color:var(--text-5); font:inherit; font-size:var(--fs-sm); text-align:left; cursor:text; }
+  .crm-search-open span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .crm-search-open kbd { flex:none; font-size:11px; padding:1px 6px; border-radius:5px; border:1px solid var(--border-2); color:var(--text-5); }
+  .crm-search-open:hover { border-color:var(--border-3); }
   .crm-search svg.crm-search-ico { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-6); pointer-events:none; }
   .crm-search-pop { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:70; background:var(--bg-2); border:1px solid var(--border-2); border-radius:var(--r-lg); box-shadow:0 10px 30px rgba(0,0,0,.28); max-height:60vh; overflow-y:auto; padding:6px; }
   .crm-search-group { font-size:var(--fs-xs); font-weight:600; color:var(--text-4); padding:8px 8px 4px; }

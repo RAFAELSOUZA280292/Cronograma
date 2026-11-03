@@ -280,7 +280,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/ContactForm.jsx` | 118 | Cadastro/edição de contato (estado local + Salvar). Sem empresa definida, o |
 | `src/crm/ContactLinks.jsx` | 80 | Telefone, WhatsApp e e-mail do contato como links de um toque (ligar, abrir conversa, escrever) e um botão azul que copia o número (só dígitos). |
 | `src/crm/ContactsPage.jsx` | 74 | Lista de contatos (PRD 10). Papel na decisão e força do relacionamento à vista. |
-| `src/crm/CrmScreen.jsx` | 138 | CRM PRICETAX — shell do módulo (Fases 1-3, 2026-09-20, PROJECT_CONTEXT.md §54/§55/§56). |
+| `src/crm/CrmScreen.jsx` | 139 | CRM PRICETAX — shell do módulo (Fases 1-3, 2026-09-20, PROJECT_CONTEXT.md §54/§55/§56). |
 | `src/crm/DealDrawer.jsx` | 317 | Ficha do negócio (drawer). Resumo (valor, probabilidade, produtos), Histórico |
 | `src/crm/DealForm.jsx` | 343 | Cadastro/edição de negócio (estado local + Salvar). A empresa é sempre |
 | `src/crm/DealImportWizard.jsx` | 208 | Importar negócios de planilha (feito pro export "Oportunidades" do PipeRun). Arquivo → colunas → |
@@ -288,7 +288,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/DealsPage.jsx` | 559 | Negócios (PRD 12/13): quadro Kanban por etapa + lista. Arrastar o cartão move |
 | `src/crm/FollowUpQueue.jsx` | 142 | Fila de follow-ups (§93): uma atividade por vez, da mais atrasada para a mais nova, com o contato a um toque (ligar / WhatsApp), |
 | `src/crm/FunnelsAdmin.jsx` | 162 | Configuração de funis e etapas (gestor+). A empresa pode ter vários funis (ex.: Empresas, |
-| `src/crm/GlobalSearch.jsx` | 59 | Busca global do CRM (PRD 38) — Fase 1: empresas e contatos. |
+| `src/crm/GlobalSearch.jsx` | 17 | Busca do CRM (PRD 38). Desde 03/11 (Rafael: "duas buscas no CRM") é a mesma busca do topo (Buscar… / Ctrl K), que já acha |
 | `src/crm/ImportWizard.jsx` | 175 | Importação de planilha Excel/CSV (PRD 48): arquivo -> mapeamento de colunas |
 | `src/crm/InlineCells.jsx` | 48 | Edição direta na célula (§94): clicar e digitar/escolher salva na hora, sem abrir formulário. Esc cancela. Não propaga o clique (a linha abre a ficha). |
 | `src/crm/OverviewLenses.jsx` | 360 | Painéis da Visão geral por função (§98): Meu dia, Time, Receita e Contas. Só números e listas que levam a uma ação; |
@@ -301,7 +301,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 96 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 546 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 550 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/overviewLogic.js` | 68 | Prioridade do dia na Visão geral do CRM (piloto da Onda 2, 2026-10-31). Lógica pura: nada de IA, nada de rede — escolhe e ordena o que já veio do servidor |
 | `src/crm/ui.jsx` | 125 | Peças de UI compartilhadas do CRM. |
@@ -436,7 +436,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
 | `src/shell/CommandPalette.jsx` | 163 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
-| `src/shell/ModuleShell.jsx` | 187 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
+| `src/shell/ModuleShell.jsx` | 190 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
 | `src/shell/NotificationPrefs.jsx` | 126 | Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado). |
 | `src/shell/ShortcutsHelp.jsx` | 37 | Ajuda de atalhos (tecla "?" ou Menu › Atalhos de teclado). Só leitura; a lista vem de shortcuts.js. |
 | `src/shell/libraryItems.js` | 21 | Itens da paleta (Ctrl+K) para Pareceres, Modelos e Conhecimento: resposta de GET /api/library-search → itens da lista. |

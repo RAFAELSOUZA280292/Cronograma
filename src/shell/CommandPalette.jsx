@@ -12,9 +12,9 @@ import { trackFlow } from '../lib/experience.js';
 
 const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const MAX = 40;
-const GROUP_ORDER = ['Ações', 'Ir para', 'Negócios (CRM)', 'Empresas (CRM)', 'Contatos (CRM)', 'Empresas', 'Atividades', 'Reuniões', 'Meu quadro', 'Pareceres', 'Modelos', 'Conhecimento'];
+const GROUP_ORDER = ['Ações', 'Ir para', 'Negócios (CRM)', 'Contas (CRM)', 'Contatos (CRM)', 'Empresas', 'Atividades', 'Reuniões', 'Meu quadro', 'Pareceres', 'Modelos', 'Conhecimento'];
 // Grupos que vêm do servidor (não estão carregados no app): teto menor e ranking do servidor.
-const REMOTE_GROUPS = new Set(['Negócios (CRM)', 'Empresas (CRM)', 'Contatos (CRM)', 'Pareceres', 'Modelos', 'Conhecimento']);
+const REMOTE_GROUPS = new Set(['Negócios (CRM)', 'Contas (CRM)', 'Contatos (CRM)', 'Pareceres', 'Modelos', 'Conhecimento']);
 
 function score(item, terms) {
   const label = fold(item.label);

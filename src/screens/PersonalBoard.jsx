@@ -715,7 +715,7 @@ function PersonalColumn({
           style={S.personalQuickAddInput}
         />
       ) : (
-        <button className="pb-addbtn" style={{ ...S.personalAddCard, color: colorMeta ? colorMeta.text : 'var(--text-5)' }} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova atividade</button>
+        <button className="pb-addbtn" style={{ ...S.personalAddCard, color: colorMeta ? colorMeta.text : 'var(--text-5)' }} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova tarefa</button>
       ))}
     </div>
   );
