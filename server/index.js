@@ -16,7 +16,7 @@ import { router as mailRouter } from './mail.js';
 import { router as mailLinksRouter, startMailIndexScheduler } from './mailLinks.js';
 import { router as boardSideRouter } from './boardSide.js';
 import { modeForPath } from '../src/lib/routes.js';
-import { withModuleHead } from '../shared/moduleIcons.js';
+import { withModuleHead, moduleManifest } from '../shared/moduleIcons.js';
 import { router as whatsappRouter, publicRouter as whatsappPublicRouter, whatsappEnabled } from './whatsapp.js';
 import { router as macroRouter } from './macro.js';
 import { router as inventoryRouter } from './inventory.js';
@@ -185,6 +185,15 @@ app.use(express.static(distDir, {
     if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   },
 }));
+// Manifesto de app por módulo (§158): cada módulo vira um app próprio no Dock do Mac / instalação do Chrome.
+app.get('/m/:mode.webmanifest', (req, res) => {
+  let base = {};
+  try { base = JSON.parse(fs.readFileSync(path.join(distDir, 'manifest.webmanifest'), 'utf8')); } catch { /* sem build: só o do módulo */ }
+  const m = moduleManifest(base, req.params.mode);
+  if (!m) return res.status(404).type('text/plain').send('Módulo desconhecido.');
+  res.set('Cache-Control', 'no-cache');
+  res.type('application/manifest+json').send(JSON.stringify(m));
+});
 app.get('/{*splat}', (req, res) => {
   if (req.path.startsWith('/acompanhamento/') || req.path.startsWith('/a/') || req.path.startsWith('/agendar/')) res.set('X-Robots-Tag', 'noindex, nofollow');
   if (req.path.startsWith('/assets/')) return res.status(404).type('text/plain').send('Arquivo não encontrado.');

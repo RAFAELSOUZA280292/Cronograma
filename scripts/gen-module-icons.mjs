@@ -1,6 +1,6 @@
 // Ícone de cada módulo para favoritos e aba do navegador (2026-11-03, §158; Rafael favoritou Agenda e E-mail no Safari e os dois
 // saíram com o mesmo X). Gera public/icons/m-<módulo>-180.png (favorito/tela de início: fundo preto, ícone do módulo em amarelo e o X
-// da marca no canto) e m-<módulo>-64.png (aba: só o ícone). Os ícones são os mesmos do menu do painel (lucide-react, SHELL_MODES).
+// da marca no canto), m-<módulo>-512.png (o mesmo em alta, para o Dock) e m-<módulo>-64.png (aba: só o ícone). Os ícones são os mesmos do menu do painel (lucide-react, SHELL_MODES).
 //   node scripts/gen-module-icons.mjs
 import fs from 'node:fs';
 import os from 'node:os';
@@ -41,6 +41,11 @@ for (const key of Object.keys(MODULE_ICONS)) {
     <div style="position:absolute;right:10px;bottom:10px;width:50px;height:50px;border-radius:14px;background:#000;box-shadow:0 0 0 2px #0b0b0b;overflow:hidden"><img src="${logo}" style="width:50px;height:50px;display:block"></div>
   </div></body>`);
   await page.screenshot({ path: path.join(OUT, `m-${key}-180.png`), clip: { x: 0, y: 0, width: 180, height: 180 } });
+  // 512: o mesmo desenho em alta (Dock do Mac e instalação do Chrome usam o manifesto, que pede 512).
+  const big = await browser.newPage({ deviceScaleFactor: 512 / 180, viewport: { width: 180, height: 180 } });
+  await big.setContent(await page.content());
+  await big.screenshot({ path: path.join(OUT, `m-${key}-512.png`), clip: { x: 0, y: 0, width: 180, height: 180 } });
+  await big.close();
   // 64: aba do navegador (pequeno demais para o X: só o ícone).
   await page.setViewportSize({ width: 64, height: 64 });
   await page.setContent(`<body style="margin:0;background:#000"><div style="width:64px;height:64px;background:#0b0b0b;border-radius:14px;display:grid;place-items:center">${svg(Icon, 46, 2.4)}</div></body>`);

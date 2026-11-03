@@ -43,7 +43,7 @@ import NotificationPrefs from './shell/NotificationPrefs.jsx';
 
 
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
-import { moduleIcon } from '../shared/moduleIcons.js';
+import { moduleIcon, moduleManifestUrl } from '../shared/moduleIcons.js';
 import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
 import { loadHomePrefs, useHomePrefs } from './home/homePrefs.js';
 import HomeGrid, { PersonalizeButton } from './home/HomeGrid.jsx';
@@ -1931,13 +1931,17 @@ function AppScreens({ shellRef, bump }) {
   // para a ordem dos hooks não mudar. Sem sessão, fica o título padrão do index.html.
   const tabTitleRef = useRef('');
   const tabIconRef = useRef('');
+  const tabManifestRef = useRef('');
   useEffect(() => {
     if (!tabTitleRef.current) return;
     const unread = (document.title.match(/^\(\d+\) /) || [''])[0];
     if (document.title !== unread + tabTitleRef.current) document.title = unread + tabTitleRef.current;
-    // Ícone da aba pelo módulo (§158), o mesmo que o servidor põe no favorito do endereço.
-    const link = document.querySelector('link[rel="icon"]');
-    if (link && tabIconRef.current && link.getAttribute('href') !== tabIconRef.current) link.setAttribute('href', tabIconRef.current);
+    // Ícone da aba, ícone de favorito e manifesto pelo módulo (§158), os mesmos que o servidor põe no endereço: navegar por dentro
+    // (Agenda → E-mail) e então "Adicionar ao Dock" tem de criar o app do E-mail, não o da Agenda.
+    const set = (sel, href) => { const el = document.querySelector(sel); if (el && href && el.getAttribute('href') !== href) el.setAttribute('href', href); };
+    set('link[rel="icon"]', tabIconRef.current);
+    set('link[rel="apple-touch-icon"]', tabIconRef.current && tabIconRef.current.replace('-64.png', '-180.png').replace('/favicon.png', '/apple-touch-icon.png'));
+    set('link[rel="manifest"]', tabManifestRef.current);
   });
   if (publicBoardMatch) {
     return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} /></React.Suspense>;
@@ -2020,6 +2024,7 @@ function AppScreens({ shellRef, bump }) {
   const titleModule = shellCurrent ? (SHELL_MODES.find((m) => m.key === shellCurrent) || {}).label : 'Início';
   tabTitleRef.current = [titleCompanyName, titleModule, 'PRICETAX'].filter(Boolean).join(' · ');
   tabIconRef.current = moduleIcon(shellCurrent, 64);
+  tabManifestRef.current = moduleManifestUrl(shellCurrent);
   // Itens da busca global (Ctrl+K), dos recentes e dos favoritos. `kind`+`rid` identificam o item de forma estável (é só isso
   // que os recentes/favoritos guardam); `run` é reconstruído aqui a cada vez, a partir dos dados atuais.
   // Negócios, empresas e contatos do CRM para a paleta (Ctrl+K): vêm do servidor, só a partir de 2 letras.
