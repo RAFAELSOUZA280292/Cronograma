@@ -2,7 +2,7 @@
 // de atalhos da lista/leitura. Só funções puras — a tela (MailScreen.jsx) e a ajuda "?" (shell/shortcuts.js) leem daqui.
 // `scripts/mail-view.test.mjs` confere limites, saneamento e o mapa de teclas.
 
-// `side`/`sideW` (§150): painel lateral à direita (Agenda ou Tarefas, como a barra do Google) e a largura dele.
+// `side`/`sideW` (§151): painel lateral à direita (Agenda ou Tarefas, como a barra do Google) e a largura dele.
 export const VIEW_DEFAULTS = { navW: 220, listW: 360, listH: 0.45, reading: 'right', density: 'comfortable', snippet: true, navCollapsed: false, side: '', sideW: 340 };
 export const LIMITS = { nav: [160, 360], list: [260, 720], listH: [0.2, 0.8], readerMin: 360, side: [280, 640] };
 export const SIDE_PANELS = ['', 'agenda', 'tasks'];

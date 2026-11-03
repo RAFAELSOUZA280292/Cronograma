@@ -1,4 +1,4 @@
-// Tarefas no painel lateral da Caixa de e-mail (2026-11-03, §150; Rafael: "onde tem tarefas, aí você destina para o nosso quadro").
+// Tarefas no painel lateral da Caixa de e-mail (2026-11-03, §151; Rafael: "onde tem tarefas, aí você destina para o nosso quadro").
 // Duas rotas da PRÓPRIA pessoa, nunca de outra:
 // - GET  /api/board-side       → páginas e colunas do quadro (para escolher onde cai) e os cartões abertos de hoje e atrasados;
 // - POST /api/board-side/cards → acrescenta UM cartão. Não regrava o quadro vindo da tela: lê com FOR UPDATE, aplica a operação

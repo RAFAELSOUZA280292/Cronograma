@@ -351,6 +351,6 @@
   .agd-cal-x { opacity: 1; }
 }
 
-/* Faixa do horário do convite aberto no e-mail (painel lateral da Caixa, §150): por trás dos compromissos, tracejada. */
+/* Faixa do horário do convite aberto no e-mail (painel lateral da Caixa, §151): por trás dos compromissos, tracejada. */
 .agd-mark { position: absolute; left: 0; right: 0; z-index: 1; border: 2px dashed var(--ui-info); border-radius: 6px; background: color-mix(in srgb, var(--ui-info) 12%, transparent); pointer-events: none; }
 .agd-mark span { position: absolute; right: 4px; bottom: 2px; font-size: 10.5px; font-weight: 700; color: var(--ui-info); background: var(--bg-1); border-radius: 4px; padding: 0 4px; }

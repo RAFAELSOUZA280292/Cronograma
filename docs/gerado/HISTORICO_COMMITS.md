@@ -2,10 +2,12 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-623 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+625 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (8)
+## 2026-11-03 (10)
 
+- `19555f5` 11:26 — E-mail: painel lateral com Agenda e Tarefas, como a barra do Google
+- `86a22fe` 11:12 — CRM sem nomes repetidos e com uma busca só (§150)
 - `a9b60f2` 11:09 — Cérebro: Rafael confirmou em produção o título da aba pelo módulo (§149)
 - `5d3dff4` 11:06 — Cérebro: título da aba pelo módulo (§149)
 - `d80da0e` 11:04 — Título da aba do navegador pelo módulo aberto (E-mail · PRICETAX, CRM · PRICETAX; empresa aberta na frente)

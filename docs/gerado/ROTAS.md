@@ -2,57 +2,58 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **433 rotas** em **42 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **435 rotas** em **43 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 106 |
-| `/api/xflow` | `server/xflow.js` | 107 |
-| `/api/google` | `server/google.js` | 108 |
-| `/api/microsoft` | `server/microsoft.js` | 109 |
-| `/api/agenda/booking` | `server/agendaBooking.js` | 110 |
-| `/api/agenda` | `server/agenda.js` | 111 |
-| `/api/public-booking` | `server/agendaBooking.js` | 112 |
-| `/api/mail` | `server/mail.js` | 113 |
-| `/api/mail-links` | `server/mailLinks.js` | 114 |
-| `/api/whatsapp` | `server/whatsapp.js` | 115 |
-| `/api/whatsapp` | `server/whatsapp.js` | 116 |
-| `/api/macro` | `server/macro.js` | 117 |
-| `/api/inventory` | `server/inventory.js` | 118 |
-| `/api/inventory` | `server/inventoryEdit.js` | 119 |
-| `/api/gaps` | `server/gaps.js` | 120 |
-| `/api/task-links` | `server/taskLinks.js` | 121 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 122 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 123 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 124 |
-| `/api/assistant` | `server/assistant.js` | 125 |
-| `/api/knowledge` | `server/knowledge.js` | 126 |
-| `/api/pareceres` | `server/pareceres.js` | 127 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 128 |
-| `/api/crm` | `server/crm/routes.js` | 129 |
-| `/api/renata` | `server/renata/routes.js` | 130 |
-| `/api/widget` | `server/widget.js` | 131 |
-| `/api/daily` | `server/daily.js` | 132 |
-| `/api/home-prefs` | `server/homePrefs.js` | 133 |
-| `/api/tours` | `server/tours.js` | 134 |
-| `/api/templates` | `server/documentTemplates.js` | 135 |
-| `/api/library-search` | `server/librarySearch.js` | 136 |
-| `/api/briefing` | `server/briefing.js` | 137 |
-| `/api/client360` | `server/client360.js` | 138 |
-| `/api/connect` | `server/connect.js` | 139 |
-| `/api/company-share` | `server/companyShare.js` | 140 |
-| `/api/project-vault` | `server/projectVault.js` | 141 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 142 |
-| `/api/public-company` | `server/companyShare.js` | 143 |
-| `/d` | `server/companyShare.js` | 144 |
-| `/d` | `server/errorHandler.js` | 145 |
-| `/api/push` | `server/push.js` | 146 |
-| `/api/ops-intel` | `server/opsIntel.js` | 147 |
-| `/api/experience` | `server/experience.js` | 148 |
-| `/api/project-history` | `server/projectVersions.js` | 149 |
-| `/api` | `server/errorHandler.js` | 157 |
+| `/api` | `server/routes.js` | 107 |
+| `/api/xflow` | `server/xflow.js` | 108 |
+| `/api/google` | `server/google.js` | 109 |
+| `/api/microsoft` | `server/microsoft.js` | 110 |
+| `/api/agenda/booking` | `server/agendaBooking.js` | 111 |
+| `/api/agenda` | `server/agenda.js` | 112 |
+| `/api/public-booking` | `server/agendaBooking.js` | 113 |
+| `/api/mail` | `server/mail.js` | 114 |
+| `/api/mail-links` | `server/mailLinks.js` | 115 |
+| `/api/board-side` | `server/boardSide.js` | 116 |
+| `/api/whatsapp` | `server/whatsapp.js` | 117 |
+| `/api/whatsapp` | `server/whatsapp.js` | 118 |
+| `/api/macro` | `server/macro.js` | 119 |
+| `/api/inventory` | `server/inventory.js` | 120 |
+| `/api/inventory` | `server/inventoryEdit.js` | 121 |
+| `/api/gaps` | `server/gaps.js` | 122 |
+| `/api/task-links` | `server/taskLinks.js` | 123 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 124 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 125 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 126 |
+| `/api/assistant` | `server/assistant.js` | 127 |
+| `/api/knowledge` | `server/knowledge.js` | 128 |
+| `/api/pareceres` | `server/pareceres.js` | 129 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 130 |
+| `/api/crm` | `server/crm/routes.js` | 131 |
+| `/api/renata` | `server/renata/routes.js` | 132 |
+| `/api/widget` | `server/widget.js` | 133 |
+| `/api/daily` | `server/daily.js` | 134 |
+| `/api/home-prefs` | `server/homePrefs.js` | 135 |
+| `/api/tours` | `server/tours.js` | 136 |
+| `/api/templates` | `server/documentTemplates.js` | 137 |
+| `/api/library-search` | `server/librarySearch.js` | 138 |
+| `/api/briefing` | `server/briefing.js` | 139 |
+| `/api/client360` | `server/client360.js` | 140 |
+| `/api/connect` | `server/connect.js` | 141 |
+| `/api/company-share` | `server/companyShare.js` | 142 |
+| `/api/project-vault` | `server/projectVault.js` | 143 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 144 |
+| `/api/public-company` | `server/companyShare.js` | 145 |
+| `/d` | `server/companyShare.js` | 146 |
+| `/d` | `server/errorHandler.js` | 147 |
+| `/api/push` | `server/push.js` | 148 |
+| `/api/ops-intel` | `server/opsIntel.js` | 149 |
+| `/api/experience` | `server/experience.js` | 150 |
+| `/api/project-history` | `server/projectVersions.js` | 151 |
+| `/api` | `server/errorHandler.js` | 159 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -124,8 +125,8 @@ Arquivos: `server/index.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| POST | `/api/csp-report` |  |  | `server/index.js:73` |
-| GET | `/{*splat}` |  |  | `server/index.js:174` |
+| POST | `/api/csp-report` |  |  | `server/index.js:74` |
+| GET | `/{*splat}` |  |  | `server/index.js:176` |
 
 ## `(sem prefixo conhecido)` — 2 rotas
 
@@ -191,6 +192,15 @@ Arquivos: `server/assistant.js`.
 | POST | `/api/assistant/dossier` | `requireAuth` |  | `server/assistant.js:164` |
 | POST | `/api/assistant/messages/:id/action` | `requireAuth` | confirma ou rejeita, sempre a partir de um clique explícito do usuário no painel (nunca automático). | `server/assistant.js:185` |
 | POST | `/api/assistant/general/ask` | `requireAuth` | RENATA geral (disponível de qualquer tela, sem projeto): responde com o que a pessoa já vê + conhecimento da organização. A conversa fica no navegador; o servidor só rec… | `server/assistant.js:207` |
+
+## `/api/board-side` — 2 rotas
+
+Arquivos: `server/boardSide.js`.
+
+| Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
+|---|---|---|---|---|
+| GET | `/api/board-side` |  |  | `server/boardSide.js:50` |
+| POST | `/api/board-side/cards` |  |  | `server/boardSide.js:58` |
 
 ## `/api/briefing` — 1 rotas
 

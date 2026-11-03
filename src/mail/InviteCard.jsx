@@ -26,7 +26,7 @@ function headline(invite, who) {
 }
 
 // `onAnswered`: respondeu (Sim/Talvez/Não ou propôs horário) → a Caixa arquiva a conversa, como o Gmail faz (02/11/2026).
-// `onFocus(focus, { open })` (§150): o horário do convite vai para o painel lateral da Caixa (o painel aberto pula para o dia);
+// `onFocus(focus, { open })` (§151): o horário do convite vai para o painel lateral da Caixa (o painel aberto pula para o dia);
 // com ele, "Ver na agenda" abre o painel ao lado em vez de trocar de tela.
 export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered, onFocus }) {
   const [data, setData] = useState(null);

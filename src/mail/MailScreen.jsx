@@ -91,7 +91,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onGoPersona
 
   useEffect(() => { try { window.localStorage.setItem(viewKey(currentUser.id), JSON.stringify(view)); } catch { /* sem storage: vale só nesta visita */ } }, [view, currentUser.id]);
   const setV = (patch) => setView((v) => ({ ...v, ...patch }));
-  // Painel lateral (§150): Agenda (quem tem a Agenda) e Tarefas (quem tem a Gestão de Atividades); um por vez.
+  // Painel lateral (§151): Agenda (quem tem a Agenda) e Tarefas (quem tem a Gestão de Atividades); um por vez.
   const canSideAgenda = !!onGoAgenda;
   const canSideTasks = !!currentUser.personalAccess;
   const [openInfo, setOpenInfo] = useState(null);
@@ -792,7 +792,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
       const last = d.messages[d.messages.length - 1];
       setExpanded(new Set(d.messages.filter((m) => m.unread).map((m) => m.id).concat(last ? [last.id] : [])));
       onOpened(id, d.messages.some((m) => m.unread));
-      // Painel de Tarefas (§150): assunto e quem mandou (a última mensagem que não é minha) para "Criar tarefa deste e-mail".
+      // Painel de Tarefas (§151): assunto e quem mandou (a última mensagem que não é minha) para "Criar tarefa deste e-mail".
       const them = [...d.messages].reverse().find((m) => !m.sent && m.from && m.from.email);
       if (onInfo) onInfo({ id, subject: d.subject || '', from: them ? { name: them.from.name || '', email: them.from.email } : null });
     }).catch((e) => { if (alive) setError(e.message); });

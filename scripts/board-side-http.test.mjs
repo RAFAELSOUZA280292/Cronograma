@@ -1,4 +1,4 @@
-// Teste HTTP das Tarefas no painel da Caixa (§150): cria UM cartão no quadro da própria pessoa, com trava, cópia de segurança e link
+// Teste HTTP das Tarefas no painel da Caixa (§151): cria UM cartão no quadro da própria pessoa, com trava, cópia de segurança e link
 // para o e-mail; uma aba do quadro aberta com a versão antiga (PATCH com baseUpdatedAt velho, sem mergeable) NÃO apaga o cartão novo;
 // quem não tem Gestão de Atividades leva 403. Contra servidor e Postgres LOCAIS, usuários temporários.
 //   BASE=http://localhost:3001 DATABASE_URL=postgres://localhost:5432/cronograma_dev node scripts/board-side-http.test.mjs

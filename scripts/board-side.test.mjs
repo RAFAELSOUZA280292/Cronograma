@@ -1,4 +1,4 @@
-// Tarefas no painel lateral da Caixa (server/boardSide.js, §150): o que aparece em "Hoje e atrasadas" e a descrição do cartão do e-mail.
+// Tarefas no painel lateral da Caixa (server/boardSide.js, §151): o que aparece em "Hoje e atrasadas" e a descrição do cartão do e-mail.
 import assert from 'node:assert/strict';
 import { sideView, cardFromMail } from '../server/boardSide.js';
 

@@ -510,7 +510,7 @@ function blockStyle(ev) {
   return { background: c, border: `1px solid ${c}`, color: inkOn(c), ...(ev.status === 'cancelled' ? { opacity: 0.55, textDecoration: 'line-through' } : {}) };
 }
 
-// `mark` ({ startMin, endMin, label }, só na visão de um dia): faixa destacada (o horário do convite aberto no e-mail, §150).
+// `mark` ({ startMin, endMin, label }, só na visão de um dia): faixa destacada (o horário do convite aberto no e-mail, §151).
 // `scrollTo` (minuto do dia): onde a grade abre rolada; sem ele, nas 7h ou um pouco antes do primeiro compromisso.
 export function WeekGrid({ daysInView, events, dayStats, hideDetails, hasClash, eventLabel, eventAria, eventTip, onOpenEvent, onPickSlot, mark, scrollTo }) {
   const scrollRef = useRef(null);

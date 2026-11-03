@@ -1,4 +1,4 @@
-// Painel lateral da Caixa de e-mail (2026-11-03, §150; Rafael mostrou a barra do Google: "preciso do mesmo no nosso e-mail… ver a
+// Painel lateral da Caixa de e-mail (2026-11-03, §151; Rafael mostrou a barra do Google: "preciso do mesmo no nosso e-mail… ver a
 // minha agenda, redimensionar, alterar para amanhã, onde tem tarefas você destina para o nosso quadro"). Barra de ícones à direita +
 // um painel por vez:
 // - Agenda: o dia em coluna (a mesma grade da Agenda do painel, WeekGrid com um dia), Hoje/‹ ›/data, compromisso abre o detalhe de
