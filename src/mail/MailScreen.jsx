@@ -151,6 +151,17 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
 
   useEffect(() => { if (ready) loadNav(); }, [ready, loadNav]);
   useEffect(() => { if (ready) apiGet('/api/mail/signature').then(setSignature).catch(() => {}); }, [ready]);
+  // Convites já respondidos fora daqui (Google Agenda, celular, Agenda do painel) saem da Entrada ao abrir a Caixa, como no Gmail.
+  // O servidor faz no máximo a cada 3 min por pessoa (server/inviteTidy.js); nada é apagado, vai para o Arquivo.
+  useEffect(() => {
+    if (!ready || folder !== 'INBOX' || search) return;
+    apiPost('/api/mail/invites/tidy').then((r) => {
+      if (!r || !r.archived) return;
+      loadThreads({ quiet: true }); loadNav();
+      notify(r.archived === 1 ? 'Um convite já respondido saiu da Caixa de entrada (está no Arquivo).' : `${r.archived} convites já respondidos saíram da Caixa de entrada (estão no Arquivo).`);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, folder, search]);
   useEffect(() => {
     if (!ready) return;
     setSelected(new Set());
@@ -804,7 +815,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
             </div>
             <span className="mail-date" title={fmtFullDate(m.date)}><span className="mail-date-full">{fmtFullDate(m.date)}</span><span className="mail-date-short">{fmtListDate(m.date)}</span></span>
           </header>
-          {expanded.has(m.id) && <MessageBody msg={m} onReply={() => onCompose('reply', m.id)} onGoAgenda={onGoAgenda} />}
+          {expanded.has(m.id) && <MessageBody msg={m} onReply={() => onCompose('reply', m.id)} onGoAgenda={onGoAgenda} onAnswered={data && data.inInbox ? () => onAct('archive') : undefined} />}
           {expanded.has(m.id) && m.draft && (
             <div className="mail-reply-bar"><Button size="sm" variant="primary" icon={PencilLine} onClick={onOpenDraft}>Continuar rascunho</Button></div>
           )}
@@ -826,7 +837,7 @@ function replyAllCount(m, me) {
   return new Set([m.from, ...m.to, ...m.cc].map((p) => String((p && p.email) || '').toLowerCase()).filter((e) => e && e !== mine)).size;
 }
 
-function MessageBody({ msg, onReply, onGoAgenda }) {
+function MessageBody({ msg, onReply, onGoAgenda, onAnswered }) {
   const { showImages } = useMailPrefs();
   const [asked, setImages] = useState(false);
   const images = showImages || asked;
@@ -840,7 +851,7 @@ function MessageBody({ msg, onReply, onGoAgenda }) {
           <button type="button" className="mail-link" onClick={() => setImages(true)}>Mostrar imagens</button>
         </div>
       )}
-      {msg.invite && !msg.draft && <InviteCard messageId={msg.id} onReply={onReply} onGoAgenda={onGoAgenda} />}
+      {msg.invite && !msg.draft && <InviteCard messageId={msg.id} onReply={onReply} onGoAgenda={onGoAgenda} onAnswered={onAnswered} />}
       <MailFrame html={html} />
       {msg.attachments.length > 0 && (
         <ul className="mail-atts" aria-label="Anexos">

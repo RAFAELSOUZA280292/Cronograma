@@ -19,6 +19,7 @@ import {
 } from './calendarAccounts.js';
 import { googleExtConfigured } from './googleCalendar.js';
 import { microsoftConfigured } from './microsoftGraph.js';
+import { tidyAnsweredInvites } from './inviteTidy.js';
 import {
   teamEvents, listSubscriptions, saveSubscriptions, teamPeople, searchEvents, listTasks, createTask, setTaskDone, deleteTask, createOutOfOffice,
   eventColorOf, cleanSubscriptions, GOOGLE_EVENT_COLORS, TEAM_COLORS, MAX_PEOPLE, normEmail,
@@ -238,12 +239,14 @@ router.post('/events/:id/respond', requireAuth, async (req, res, next) => {
       const ev = await extraRespond(req.user.id, id, response, comment, propose);
       return res.json({ id, myResponse: (ev && ev.myResponse) || response, event: ev && ev.title ? ev : undefined });
     }
+    // Respondeu pela Agenda: o e-mail do convite sai da Caixa de entrada também (depois da resposta, sem segurar a tela).
+    const tidy = () => tidyAnsweredInvites(req.user.id, { force: true }).catch(() => {});
     if (comment === undefined) {
       const out = await respondToEvent(req.user.id, id, response);
-      return res.json(out);
+      res.json(out); tidy(); return;
     }
     const ev = await respondWithNote(req.user.id, id, response, comment);
-    res.json({ id: ev.id, myResponse: ev.myResponse, event: ev });
+    res.json({ id: ev.id, myResponse: ev.myResponse, event: ev }); tidy();
   } catch (e) { failGoogle(res, next, e); }
 });
 

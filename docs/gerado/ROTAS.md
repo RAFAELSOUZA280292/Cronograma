@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **430 rotas** em **41 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **431 rotas** em **41 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -134,29 +134,29 @@ Arquivos: `server/agenda.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/agenda` | `requireAuth` |  | `server/agenda.js:29` |
-| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:167` |
-| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:180` |
-| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:189` |
-| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:198` |
-| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:210` |
-| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:221` |
-| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:251` |
-| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:265` |
-| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:278` |
-| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:282` |
-| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:292` |
-| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:296` |
-| GET | `/api/agenda/colors` | `requireAuth` |  | `server/agenda.js:303` |
-| GET | `/api/agenda/people` | `requireAuth` |  | `server/agenda.js:307` |
-| GET | `/api/agenda/with` | `requireAuth` | "Reunião com…": agenda de até 6 pessoas no período, sem assinar (some ao fechar). | `server/agenda.js:312` |
-| GET | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:323` |
-| PUT | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:326` |
-| GET | `/api/agenda/search` | `requireAuth` | Busca nos seus compromissos do Google (um ano para trás e um para frente, como a lupa do Google Agenda). | `server/agenda.js:335` |
-| POST | `/api/agenda/tasks` | `requireAuth` |  | `server/agenda.js:344` |
-| PATCH | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:355` |
-| DELETE | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:359` |
-| POST | `/api/agenda/out-of-office` | `requireAuth` | Ausente: bloco "Fora do escritório" do Google, que recusa sozinho os convites no período (com a mensagem, se pedir). | `server/agenda.js:365` |
+| GET | `/api/agenda` | `requireAuth` |  | `server/agenda.js:30` |
+| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:168` |
+| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:181` |
+| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:190` |
+| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:199` |
+| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:211` |
+| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:222` |
+| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:254` |
+| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:268` |
+| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:281` |
+| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:285` |
+| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:295` |
+| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:299` |
+| GET | `/api/agenda/colors` | `requireAuth` |  | `server/agenda.js:306` |
+| GET | `/api/agenda/people` | `requireAuth` |  | `server/agenda.js:310` |
+| GET | `/api/agenda/with` | `requireAuth` | "Reunião com…": agenda de até 6 pessoas no período, sem assinar (some ao fechar). | `server/agenda.js:315` |
+| GET | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:326` |
+| PUT | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:329` |
+| GET | `/api/agenda/search` | `requireAuth` | Busca nos seus compromissos do Google (um ano para trás e um para frente, como a lupa do Google Agenda). | `server/agenda.js:338` |
+| POST | `/api/agenda/tasks` | `requireAuth` |  | `server/agenda.js:347` |
+| PATCH | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:358` |
+| DELETE | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:362` |
+| POST | `/api/agenda/out-of-office` | `requireAuth` | Ausente: bloco "Fora do escritório" do Google, que recusa sozinho os convites no período (com a mensagem, se pedir). | `server/agenda.js:368` |
 
 ## `/api/agenda/booking` — 2 rotas
 
@@ -464,39 +464,40 @@ Arquivos: `server/macro.js`.
 |---|---|---|---|---|
 | GET | `/api/macro` | `requireAuth` |  | `server/macro.js:31` |
 
-## `/api/mail` — 27 rotas
+## `/api/mail` — 28 rotas
 
 Arquivos: `server/mail.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail/status` |  |  | `server/mail.js:42` |
-| GET | `/api/mail/labels` |  |  | `server/mail.js:49` |
-| GET | `/api/mail/threads` |  |  | `server/mail.js:67` |
-| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:85` |
-| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:128` |
-| GET | `/api/mail/messages/:mid/invite` |  | Convite de reunião no e-mail (2026-11-02): lê o text/calendar (ou o .ics) e acha o evento na agenda da pessoa pelo UID, para o cartão com Sim/Talvez/Não, proposta de nov… | `server/mail.js:152` |
-| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:187` |
-| POST | `/api/mail/read-all` |  | Marcar todas como lidas (como o ⋮ do Gmail): todas as mensagens não lidas da pasta/pesquisa aberta, não só as carregadas na tela. Até 5.000 por clique (batchModify aceit… | `server/mail.js:211` |
-| GET | `/api/mail/signature` |  |  | `server/mail.js:277` |
-| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:288` |
-| PUT | `/api/mail/signature` |  |  | `server/mail.js:292` |
-| GET | `/api/mail/prefs` |  |  | `server/mail.js:310` |
-| PUT | `/api/mail/prefs` |  |  | `server/mail.js:317` |
-| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:329` |
-| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:336` |
-| POST | `/api/mail/send` |  |  | `server/mail.js:419` |
-| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:441` |
-| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:459` |
-| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:476` |
-| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:512` |
-| POST | `/api/mail/labels` |  |  | `server/mail.js:526` |
-| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:542` |
-| GET | `/api/mail/rules` |  |  | `server/mail.js:575` |
-| POST | `/api/mail/rules` |  |  | `server/mail.js:590` |
-| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:609` |
-| GET | `/api/mail/contacts` |  |  | `server/mail.js:648` |
-| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:676` |
+| GET | `/api/mail/status` |  |  | `server/mail.js:43` |
+| GET | `/api/mail/labels` |  |  | `server/mail.js:50` |
+| GET | `/api/mail/threads` |  |  | `server/mail.js:68` |
+| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:86` |
+| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:129` |
+| GET | `/api/mail/messages/:mid/invite` |  | Convite de reunião no e-mail (2026-11-02): lê o text/calendar (ou o .ics) e acha o evento na agenda da pessoa pelo UID, para o cartão com Sim/Talvez/Não, proposta de nov… | `server/mail.js:153` |
+| POST | `/api/mail/invites/tidy` |  | Convites já respondidos (pela agenda, pelo Google ou pelo celular) saem da Entrada ao abrir a Caixa (server/inviteTidy.js). | `server/mail.js:178` |
+| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:193` |
+| POST | `/api/mail/read-all` |  | Marcar todas como lidas (como o ⋮ do Gmail): todas as mensagens não lidas da pasta/pesquisa aberta, não só as carregadas na tela. Até 5.000 por clique (batchModify aceit… | `server/mail.js:217` |
+| GET | `/api/mail/signature` |  |  | `server/mail.js:283` |
+| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:294` |
+| PUT | `/api/mail/signature` |  |  | `server/mail.js:298` |
+| GET | `/api/mail/prefs` |  |  | `server/mail.js:316` |
+| PUT | `/api/mail/prefs` |  |  | `server/mail.js:323` |
+| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:335` |
+| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:342` |
+| POST | `/api/mail/send` |  |  | `server/mail.js:425` |
+| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:447` |
+| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:465` |
+| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:482` |
+| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:518` |
+| POST | `/api/mail/labels` |  |  | `server/mail.js:532` |
+| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:548` |
+| GET | `/api/mail/rules` |  |  | `server/mail.js:581` |
+| POST | `/api/mail/rules` |  |  | `server/mail.js:596` |
+| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:615` |
+| GET | `/api/mail/contacts` |  |  | `server/mail.js:654` |
+| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:682` |
 
 ## `/api/mail-links` — 13 rotas
 
@@ -508,15 +509,15 @@ Arquivos: `server/mailLinks.js`.
 | GET | `/api/mail-links/company/:id` | `needCrm` |  | `server/mailLinks.js:218` |
 | GET | `/api/mail-links/deal/:id` | `needCrm` |  | `server/mailLinks.js:225` |
 | GET | `/api/mail-links/project/:id` |  |  | `server/mailLinks.js:232` |
-| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:245` |
-| GET | `/api/mail-links/row/:rowId/messages/:mid/attachments/:aid` |  |  | `server/mailLinks.js:284` |
-| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:314` |
-| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:321` |
-| POST | `/api/mail-links/link` | `needWrite` | "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa quando está vazio e, se pedido, cadastra… | `server/mailLinks.js:337` |
-| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:369` |
-| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:378` |
-| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:403` |
-| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:430` |
+| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:263` |
+| GET | `/api/mail-links/row/:rowId/messages/:mid/attachments/:aid` |  |  | `server/mailLinks.js:302` |
+| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:332` |
+| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:339` |
+| POST | `/api/mail-links/link` | `needWrite` | "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa quando está vazio e, se pedido, cadastra… | `server/mailLinks.js:355` |
+| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:387` |
+| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:396` |
+| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:421` |
+| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:448` |
 
 ## `/api/meeting-inbox` — 4 rotas
 

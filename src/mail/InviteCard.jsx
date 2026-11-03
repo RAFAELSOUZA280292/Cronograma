@@ -25,7 +25,8 @@ function headline(invite, who) {
   }
 }
 
-export default function InviteCard({ messageId, onReply, onGoAgenda }) {
+// `onAnswered`: respondeu (Sim/Talvez/Não ou propôs horário) → a Caixa arquiva a conversa, como o Gmail faz (02/11/2026).
+export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -55,7 +56,9 @@ export default function InviteCard({ messageId, onReply, onGoAgenda }) {
 
   async function respond(ev, response) {
     setBusy(true);
-    try { await respondToInvite(ev, response, (id, myResponse) => setEvent({ ...ev, myResponse, attendees: (ev.attendees || []).map((a) => (a.self ? { ...a, response: myResponse } : a)) })); } finally { setBusy(false); }
+    let ok = false;
+    try { ok = await respondToInvite(ev, response, (id, myResponse) => setEvent({ ...ev, myResponse, attendees: (ev.attendees || []).map((a) => (a.self ? { ...a, response: myResponse } : a)) })); } finally { setBusy(false); }
+    if (ok && onAnswered) onAnswered();
   }
   async function propose(startISO, endISO, note) {
     setBusy(true);
@@ -64,6 +67,7 @@ export default function InviteCard({ messageId, onReply, onGoAgenda }) {
       if (ev) setEvent(ev);
       setProposing(false);
       notify('Proposta enviada ao organizador junto com a sua resposta (Talvez).', { tone: 'success' });
+      if (onAnswered) onAnswered();
     } catch (e) { notify((e && e.message) || 'Não foi possível enviar a proposta.', { tone: 'error' }); } finally { setBusy(false); }
   }
   async function acceptNewTime() {

@@ -13,6 +13,7 @@ import { findEventByICalUID, googleConfigured } from './googleCalendar.js';
 import { crmRoleOf } from './crm/permissions.js';
 import { pool } from './db.js';
 import { annotateThreads, indexInBackground } from './mailLinks.js';
+import { tidyAnsweredInvites } from './inviteTidy.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
@@ -171,6 +172,11 @@ router.get('/messages/:mid/invite', async (req, res) => {
     }
     res.json({ invite, event, calendarError, me: await myAddress(req, gmail).catch(() => '') });
   } catch (e) { fail(res, e); }
+});
+
+// Convites já respondidos (pela agenda, pelo Google ou pelo celular) saem da Entrada ao abrir a Caixa (server/inviteTidy.js).
+router.post('/invites/tidy', async (req, res) => {
+  try { res.json(await tidyAnsweredInvites(req.user.id)); } catch (e) { res.json({ archived: 0, error: friendlyMailError(e) }); }
 });
 
 // Ações sobre a conversa inteira, como no Gmail. Lixeira do Gmail apaga sozinha em 30 dias; aqui não existe "excluir de vez".
