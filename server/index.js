@@ -2,6 +2,7 @@ import { apiErrorHandler } from './errorHandler.js';
 import { router as experienceRouter } from './experience.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initDb, seedIfEmpty, migrateToPricetaxOrg, migrateAccessModel, migrateXflowBoardOrder, migrateInsightsToKnowledgeFacts } from './db.js';
@@ -14,6 +15,8 @@ import { router as bookingRouter, publicRouter as publicBookingRouter } from './
 import { router as mailRouter } from './mail.js';
 import { router as mailLinksRouter, startMailIndexScheduler } from './mailLinks.js';
 import { router as boardSideRouter } from './boardSide.js';
+import { modeForPath } from '../src/lib/routes.js';
+import { withModuleHead } from '../shared/moduleIcons.js';
 import { router as whatsappRouter, publicRouter as whatsappPublicRouter, whatsappEnabled } from './whatsapp.js';
 import { router as macroRouter } from './macro.js';
 import { router as inventoryRouter } from './inventory.js';
@@ -60,6 +63,15 @@ import { seedQuoteFacts, embedQuoteFacts } from './inspirationQuotes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
+
+// index.html lido uma vez por versão do arquivo (muda a cada build/deploy).
+let indexCache = { mtime: 0, html: '' };
+function indexHtml() {
+  const file = path.join(distDir, 'index.html');
+  const mtime = fs.statSync(file).mtimeMs;
+  if (mtime !== indexCache.mtime) indexCache = { mtime, html: fs.readFileSync(file, 'utf8') };
+  return indexCache.html;
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -176,7 +188,12 @@ app.use(express.static(distDir, {
 app.get('/{*splat}', (req, res) => {
   if (req.path.startsWith('/acompanhamento/') || req.path.startsWith('/a/') || req.path.startsWith('/agendar/')) res.set('X-Robots-Tag', 'noindex, nofollow');
   if (req.path.startsWith('/assets/')) return res.status(404).type('text/plain').send('Arquivo não encontrado.');
-  res.sendFile(path.join(distDir, 'index.html'));
+  // Endereço de módulo (/agenda, /email, /crm…): a página já sai com o ícone e o título dele — o favorito do Safari e a tela de
+  // início do celular leem do HTML, antes do app rodar (§158). Os outros endereços seguem com o index.html como está.
+  const mode = modeForPath(req.path);
+  if (!mode) return res.sendFile(path.join(distDir, 'index.html'));
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(withModuleHead(indexHtml(), mode));
 });
 
 const port = process.env.PORT || 3001;

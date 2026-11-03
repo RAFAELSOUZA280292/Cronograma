@@ -43,6 +43,7 @@ import NotificationPrefs from './shell/NotificationPrefs.jsx';
 
 
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
+import { moduleIcon } from '../shared/moduleIcons.js';
 import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
 import { loadHomePrefs, useHomePrefs } from './home/homePrefs.js';
 import HomeGrid, { PersonalizeButton } from './home/HomeGrid.jsx';
@@ -1929,10 +1930,14 @@ function AppScreens({ shellRef, bump }) {
   // Título da aba: o valor é montado mais abaixo (depende do módulo); o efeito fica aqui, antes dos retornos da tela de login/carregamento,
   // para a ordem dos hooks não mudar. Sem sessão, fica o título padrão do index.html.
   const tabTitleRef = useRef('');
+  const tabIconRef = useRef('');
   useEffect(() => {
     if (!tabTitleRef.current) return;
     const unread = (document.title.match(/^\(\d+\) /) || [''])[0];
     if (document.title !== unread + tabTitleRef.current) document.title = unread + tabTitleRef.current;
+    // Ícone da aba pelo módulo (§158), o mesmo que o servidor põe no favorito do endereço.
+    const link = document.querySelector('link[rel="icon"]');
+    if (link && tabIconRef.current && link.getAttribute('href') !== tabIconRef.current) link.setAttribute('href', tabIconRef.current);
   });
   if (publicBoardMatch) {
     return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} /></React.Suspense>;
@@ -2014,6 +2019,7 @@ function AppScreens({ shellRef, bump }) {
   const titleCompanyName = titleCompany ? (titleCompany.company.nomeFantasia || titleCompany.company.name || '') : '';
   const titleModule = shellCurrent ? (SHELL_MODES.find((m) => m.key === shellCurrent) || {}).label : 'Início';
   tabTitleRef.current = [titleCompanyName, titleModule, 'PRICETAX'].filter(Boolean).join(' · ');
+  tabIconRef.current = moduleIcon(shellCurrent, 64);
   // Itens da busca global (Ctrl+K), dos recentes e dos favoritos. `kind`+`rid` identificam o item de forma estável (é só isso
   // que os recentes/favoritos guardam); `run` é reconstruído aqui a cada vez, a partir dos dados atuais.
   // Negócios, empresas e contatos do CRM para a paleta (Ctrl+K): vêm do servidor, só a partir de 2 letras.
