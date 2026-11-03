@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-628 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+631 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (13)
+## 2026-11-03 (16)
 
+- `06fd3f9` 12:02 — E-mail: Para, Cc e Cco em cartões, como no Gmail
+- `9ab00f7` 11:53 — Cérebro: Rafael confirmou em produção Responder a todos e Encaminhar (§152)
+- `716b39e` 11:38 — Cérebro: Responder a todos e Encaminhar (§152, E-19)
 - `2bc2187` 11:36 — E-mail: Responder a todos e Encaminhar no topo da conversa e no ⋮ de cada mensagem, como no Gmail
 - `22f7d5f` 11:30 — Cérebro: Rafael confirmou em produção o painel lateral da Caixa (§151)
 - `72c31e7` 11:27 — Cérebro: painel lateral da Caixa (§151, E-18); comentários apontam para §151 (a §150 é a do CRM)
