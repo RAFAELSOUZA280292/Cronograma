@@ -76,9 +76,9 @@
 .agd-person-note { flex-basis: 100%; font-size: 12.5px; color: var(--text-3); font-style: italic; overflow-wrap: anywhere; }
 .agd-person-tag { font-size: 11px; font-weight: 700; color: var(--text-4); }
 .agd-resp { flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border-2); color: var(--text-3); }
-.agd-resp.yes { border-color: #3ecf6e; color: var(--text-1); background: rgba(62, 207, 110, .14); }
-.agd-resp.maybe { border-style: dashed; border-color: #ff9f40; color: var(--text-1); }
-.agd-resp.no { text-decoration: line-through; color: var(--text-4); }
+.agd-resp.yes { border-color: rgba(22, 163, 74, .55); color: #15803d; background: rgba(34, 197, 94, .14); }
+.agd-resp.maybe { border-color: rgba(202, 138, 4, .6); color: #a16207; background: rgba(250, 204, 21, .18); }
+.agd-resp.no { border-color: rgba(220, 38, 38, .5); color: #b91c1c; background: rgba(239, 68, 68, .12); }
 .agd-answer { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-1); }
 .agd-answer-head { font-size: 12.5px; font-weight: 700; color: var(--text-3); }
 .agd-propose { display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px; background: var(--bg-2); }
@@ -354,3 +354,30 @@
 /* Faixa do horário do convite aberto no e-mail (painel lateral da Caixa, §151): por trás dos compromissos, tracejada. */
 .agd-mark { position: absolute; left: 0; right: 0; z-index: 1; border: 2px dashed var(--ui-info); border-radius: 6px; background: color-mix(in srgb, var(--ui-info) 12%, transparent); pointer-events: none; }
 .agd-mark span { position: absolute; right: 4px; bottom: 2px; font-size: 10.5px; font-weight: 700; color: var(--ui-info); background: var(--bg-1); border-radius: 4px; padding: 0 4px; }
+
+/* Resposta ao convite em cores de semáforo (§156): contorno e fundo claro na cor; a escolhida fica cheia. Vale no detalhe do
+   compromisso, no cartão de convite do e-mail e no briefing. */
+.agd-rsvp .ui-btn.agd-rsvp-btn { gap: 6px; font-weight: 700; border-width: 1.5px; }
+.agd-rsvp-emoji { font-size: 13px; line-height: 1; }
+.agd-rsvp-btn.yes { border-color: rgba(22, 163, 74, .55); color: #15803d; background: rgba(34, 197, 94, .1); }
+.agd-rsvp-btn.maybe { border-color: rgba(202, 138, 4, .6); color: #a16207; background: rgba(250, 204, 21, .14); }
+.agd-rsvp-btn.no { border-color: rgba(220, 38, 38, .5); color: #b91c1c; background: rgba(239, 68, 68, .08); }
+.agd-rsvp-btn.yes:not(.on):hover:not([aria-disabled]) { background: rgba(34, 197, 94, .2); }
+.agd-rsvp-btn.maybe:not(.on):hover:not([aria-disabled]) { background: rgba(250, 204, 21, .26); }
+.agd-rsvp-btn.no:not(.on):hover:not([aria-disabled]) { background: rgba(239, 68, 68, .16); }
+.agd-rsvp-btn.yes.on { background: #16a34a; border-color: #16a34a; color: #fff; }
+.agd-rsvp-btn.maybe.on { background: #facc15; border-color: #eab308; color: #1a1a1a; }
+.agd-rsvp-btn.no.on { background: #dc2626; border-color: #dc2626; color: #fff; }
+.agd-rsvp-btn.on { box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .agd-rsvp-btn.yes, :root:not([data-theme="light"]) .agd-resp.yes { color: #4ade80; }
+  :root:not([data-theme="light"]) .agd-rsvp-btn.maybe, :root:not([data-theme="light"]) .agd-resp.maybe { color: #fde047; }
+  :root:not([data-theme="light"]) .agd-rsvp-btn.no, :root:not([data-theme="light"]) .agd-resp.no { color: #f87171; }
+}
+:root[data-theme="dark"] .agd-rsvp-btn.yes, :root[data-theme="dark"] .agd-resp.yes { color: #4ade80; }
+:root[data-theme="dark"] .agd-rsvp-btn.maybe, :root[data-theme="dark"] .agd-resp.maybe { color: #fde047; }
+:root[data-theme="dark"] .agd-rsvp-btn.no, :root[data-theme="dark"] .agd-resp.no { color: #f87171; }
+:root .agd-rsvp-btn.yes.on, :root .agd-rsvp-btn.no.on { color: #fff; }
+:root .agd-rsvp-btn.maybe.on { color: #1a1a1a; }
+/* Escolhido: o emoji ganha uma bolinha branca (❌ sobre vermelho e 🟡 sobre amarelo sumiam). */
+.agd-rsvp-btn.on .agd-rsvp-emoji { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #fff; font-size: 11px; }
