@@ -7,7 +7,7 @@
 // Pacote de personalização (2026-11-02): cor e tamanho do texto e imagem colada, arrastada ou escolhida no corpo (vai embutida
 // por Content-ID, ver server/mailCompose.js; preparo e limites em mailImage.js).
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { splitRecipients, parseRecipient, joinRecipients, addRecipients, takeTyped } from './recipients.js';
+import { splitRecipients, parseRecipient, joinRecipients, addRecipients, takeTyped, formatRecipient, mentionQuery } from './recipients.js';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -49,6 +49,9 @@ function readAsBase64(file) {
 // ou sair do campo fecham o cartão; colar vários de uma vez vira vários cartões; Backspace no campo vazio tira o último; clique duplo
 // no cartão volta a editá-lo; endereço inválido fica em vermelho. Sugestões (contatos e CRM) como antes: setas, Enter/Tab, Esc.
 // `value` continua o texto "a, b" que vai ao envio/rascunho (src/mail/recipients.js faz a ida e a volta).
+// Cartão sendo arrastado entre Para, Cc e Cco (§159): quem soltou acrescenta, quem saiu tira — um só campo por pessoa.
+let draggingChip = null;
+
 function RecipientInput({ id, value, onChange, inputRef, placeholder }) {
   const [draft, setDraft] = useState('');
   const [items, setItems] = useState([]);
@@ -83,7 +86,21 @@ function RecipientInput({ id, value, onChange, inputRef, placeholder }) {
     else { setDraft(text); emit(chips, text); }
     setOpen(true);
   }
-  function remove(i) { const next = chips.filter((_, j) => j !== i); emit(next, draft); if (ref.current) ref.current.focus(); }
+  function remove(i, focus = true) { const next = chips.filter((_, j) => j !== i); emit(next, draft); if (focus && ref.current) ref.current.focus(); }
+  const [dropOn, setDropOn] = useState(false);
+  const canDrop = (e) => draggingChip && draggingChip.fromId !== id && e.dataTransfer && [...e.dataTransfer.types].includes('application/x-pt-rcpt');
+  const dropProps = {
+    onDragOver: (e) => { if (!canDrop(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!dropOn) setDropOn(true); },
+    onDragLeave: () => setDropOn(false),
+    onDrop: (e) => {
+      setDropOn(false);
+      if (!canDrop(e)) return;
+      e.preventDefault();
+      const d = draggingChip; draggingChip = null;
+      commit([parseRecipient(d.raw)], draft);
+      d.remove();
+    },
+  };
   function edit(i) { const r = chips[i]; const next = chips.filter((_, j) => j !== i); setDraft(r.raw); emit(next, r.raw); setTimeout(() => ref.current && ref.current.focus(), 0); }
   function onKeyDown(e) {
     if (items.length) {
@@ -99,9 +116,14 @@ function RecipientInput({ id, value, onChange, inputRef, placeholder }) {
   const listId = `${id}-sug`;
   return (
     <div className="mc-rcpt">
-      <div className="mc-chips" onMouseDown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); if (ref.current) ref.current.focus(); } }}>
+      <div className={`mc-chips${dropOn ? ' drop' : ''}`} {...dropProps} onMouseDown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); if (ref.current) ref.current.focus(); } }}>
         {chips.map((r, i) => (
-          <span key={`${r.email || r.raw}-${i}`} className={`mc-chip${r.valid ? '' : ' bad'}`} title={r.valid ? (r.name ? `${r.name} <${r.email}>` : r.email) : `Endereço inválido: ${r.raw}. Clique duas vezes para corrigir.`} onDoubleClick={() => edit(i)}>
+          <span
+            key={`${r.email || r.raw}-${i}`} className={`mc-chip${r.valid ? '' : ' bad'}`} onDoubleClick={() => edit(i)} draggable
+            title={r.valid ? `${r.name ? `${r.name} <${r.email}>` : r.email} — arraste para Para, Cc ou Cco` : `Endereço inválido: ${r.raw}. Clique duas vezes para corrigir.`}
+            onDragStart={(e) => { draggingChip = { fromId: id, raw: formatRecipient(r), remove: () => remove(i, false) }; e.dataTransfer.setData('application/x-pt-rcpt', r.email || r.raw); e.dataTransfer.effectAllowed = 'move'; }}
+            onDragEnd={() => { draggingChip = null; }}
+          >
             <span className="mc-chip-text">{r.valid ? (r.name || r.email) : r.raw}</span>
             <button type="button" className="mc-chip-x" aria-label={`Tirar ${r.name || r.email || r.raw}`} onClick={() => remove(i)}><X size={12} aria-hidden="true" /></button>
           </span>
@@ -188,9 +210,42 @@ function ColorMenu({ editor }) {
   );
 }
 
-function MailEditor({ onReady, onChange, onFiles }) {
+// @ no corpo (§159), como no Outlook: "@" + letras abre a lista de pessoas (mesma busca dos destinatários); escolher põe "@Nome"
+// (link mailto) no texto e chama onMention, que acrescenta a pessoa em Para se ela ainda não estiver no e-mail.
+function mentionAt(ed) {
+  const { selection } = ed.state;
+  if (!selection.empty) return null;
+  const { $from } = selection;
+  const query = mentionQuery($from.parent.textBetween(0, $from.parentOffset, undefined, '\ufffc'));
+  if (query === null) return null;
+  const c = ed.view.coordsAtPos($from.pos);
+  return { query, from: $from.pos - query.length - 1, to: $from.pos, top: c.bottom + 4, left: c.left };
+}
+
+function MailEditor({ onReady, onChange, onFiles, onMention }) {
   const imgRef = useRef(null);
   const editorRef = useRef(null);
+  const [ment, setMent] = useState(null); // { query, from, to, top, left }
+  const [mentItems, setMentItems] = useState([]);
+  const [mentActive, setMentActive] = useState(0);
+  const mentRef = useRef({ ment: null, items: [], active: 0, closedAt: -1 });
+  mentRef.current = { ...mentRef.current, ment, items: mentItems, active: mentActive };
+  const onMentionRef = useRef(onMention);
+  onMentionRef.current = onMention;
+  const checkMention = useCallback((ed) => {
+    const m = mentionAt(ed);
+    setMent(m && m.from !== mentRef.current.closedAt ? m : null);
+  }, []);
+  const pickMention = useCallback((c) => {
+    const ed = editorRef.current; const m = mentRef.current.ment;
+    if (!ed || !m || !c) return;
+    const label = c.name || c.email;
+    ed.chain().focus().deleteRange({ from: m.from, to: m.to })
+      .insertContent([{ type: 'text', text: `@${label}`, marks: [{ type: 'link', attrs: { href: `mailto:${c.email}` } }] }, { type: 'text', text: ' ' }]).run();
+    ed.commands.unsetMark('link');
+    setMent(null); setMentItems([]);
+    if (onMentionRef.current) onMentionRef.current(c);
+  }, []);
   const filesRef = useRef(onFiles);
   filesRef.current = onFiles;
   const insertImages = useCallback((files, at) => insertImageFiles(editorRef.current, files, at), []);
@@ -204,6 +259,16 @@ function MailEditor({ onReady, onChange, onFiles }) {
     shouldRerenderOnTransaction: true,
     editorProps: {
       attributes: { 'aria-label': 'Mensagem', role: 'textbox', 'aria-multiline': 'true' },
+      handleKeyDown: (view, event) => {
+        const st = mentRef.current;
+        if (!st.ment) return false;
+        if (event.key === 'Escape') { mentRef.current.closedAt = st.ment.from; setMent(null); return true; }
+        if (!st.items.length) return false;
+        if (event.key === 'ArrowDown') { setMentActive((x) => (x + 1) % st.items.length); return true; }
+        if (event.key === 'ArrowUp') { setMentActive((x) => (x - 1 + st.items.length) % st.items.length); return true; }
+        if (event.key === 'Enter' || event.key === 'Tab') { pickMention(st.items[st.active]); return true; }
+        return false;
+      },
       // Print colado (macOS ⌘⇧4/⌘⇧Ctrl+4, Windows PrtSc/Win+Shift+S) ou imagem copiada: entra no corpo, embutida.
       // Arquivo copiado no Finder/Explorer que não é imagem (PDF, zip, rar…): vira anexo.
       handlePaste: (view, event) => {
@@ -224,8 +289,19 @@ function MailEditor({ onReady, onChange, onFiles }) {
         return true;
       },
     },
-    onUpdate: ({ editor: ed }) => onChange(ed.isEmpty ? '' : ed.getHTML()),
+    onUpdate: ({ editor: ed }) => { onChange(ed.isEmpty ? '' : ed.getHTML()); checkMention(ed); },
+    onSelectionUpdate: ({ editor: ed }) => checkMention(ed),
+    onBlur: () => setTimeout(() => setMent(null), 150),
   }, []);
+  const mentQuery = ment ? ment.query : null;
+  useEffect(() => {
+    if (mentQuery === null || mentQuery.length < 1) { setMentItems([]); return undefined; }
+    let alive = true;
+    const t = setTimeout(() => {
+      apiGet(`/api/mail/contacts?q=${encodeURIComponent(mentQuery)}`).then((d) => { if (alive) { setMentItems((d.contacts || []).slice(0, 8)); setMentActive(0); } }).catch(() => {});
+    }, 150);
+    return () => { alive = false; clearTimeout(t); };
+  }, [mentQuery]);
   useEffect(() => { editorRef.current = editor; if (editor) onReady(editor); }, [editor, onReady]);
   if (!editor) return null;
   const keep = (e) => e.preventDefault();
@@ -261,6 +337,21 @@ function MailEditor({ onReady, onChange, onFiles }) {
         <input ref={imgRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(e) => { insertImages(imageFiles(e.target.files)); e.target.value = ''; }} />
       </div>
       <EditorContent editor={editor} className="mc-body" />
+      {ment && (
+        <ul className="mc-sug mc-mention" role="listbox" aria-label="Mencionar pessoa" style={{ top: ment.top, left: Math.min(ment.left, window.innerWidth - 300) }}>
+          {!mentItems.length && <li className="mc-mention-hint">{ment.query ? 'Ninguém com esse nome nos seus contatos.' : 'Digite o nome de quem você quer mencionar.'}</li>}
+          {mentItems.map((c, i) => (
+            <li
+              key={c.email} role="option" aria-selected={i === mentActive} className={i === mentActive ? 'on' : ''}
+              onMouseDown={(e) => { e.preventDefault(); pickMention(c); }} onMouseEnter={() => setMentActive(i)}
+            >
+              <span className="mc-sug-name">{c.name || c.email}</span>
+              {c.name && <span className="mc-sug-mail">{c.email}</span>}
+              {c.source === 'crm' && <span className="mc-sug-tag">CRM</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -424,6 +515,13 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
 
   useImperativeHandle(ref, () => ({ close }));
 
+  // @ no corpo (§159): a pessoa mencionada entra em Para, se ainda não estiver em Para, Cc ou Cco.
+  function mention(c) {
+    const email = String(c.email || '').toLowerCase();
+    if ([to, cc, bcc].flatMap(splitRecipients).map(parseRecipient).some((r) => r.email === email)) return;
+    setTo((cur) => joinRecipients(addRecipients(splitRecipients(cur).map(parseRecipient), [parseRecipient(c.name ? `${c.name} <${c.email}>` : c.email)])));
+    notify(`${c.name || c.email} entrou em Para.`, { ttlMs: 3500 });
+  }
   async function addFiles(list) {
     let picked = [...list];
     if (!picked.length) return;
@@ -511,7 +609,7 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
           )}
           <div className="mc-field"><label htmlFor="mc-subject">Assunto</label><input id="mc-subject" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={500} /></div>
 
-          <MailEditor onReady={(ed) => { editorRef.current = ed; }} onChange={setHtml} onFiles={addFiles} />
+          <MailEditor onReady={(ed) => { editorRef.current = ed; }} onChange={setHtml} onFiles={addFiles} onMention={mention} />
 
           {(files.length > 0 || forwardList.length > 0 || draftAtts.length > 0 || htmlImageBytes(html) > 0) && (
             <ul className="mc-atts" aria-label="Anexos">

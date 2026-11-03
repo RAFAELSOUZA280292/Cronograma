@@ -1,6 +1,6 @@
 // Destinatários em cartões (src/mail/recipients.js, §153): dividir, ler, juntar de volta e o que está sendo digitado.
 import assert from 'node:assert/strict';
-import { splitRecipients, parseRecipient, joinRecipients, addRecipients, takeTyped } from '../src/mail/recipients.js';
+import { splitRecipients, parseRecipient, joinRecipients, addRecipients, takeTyped, mentionQuery } from '../src/mail/recipients.js';
 
 const text = 'Marlon FINGER <marlon.finger@kuhn.com>, "Souza, Rafael" <rafael.souza@pricetax.com.br>; daniele.veiga@kuhn.com\nRonaldo Dias ronaldodias@pricetax.com.br';
 const parts = splitRecipients(text);
@@ -27,4 +27,10 @@ const t1 = takeTyped('a@x.com, b@y.com, ama');
 assert.deepEqual([t1.done.map((r) => r.email), t1.rest], [['a@x.com', 'b@y.com'], 'ama'], 'colar vários: viram cartões e sobra o trecho');
 assert.deepEqual(takeTyped('a@x.com;').done.map((r) => r.email), ['a@x.com'], 'separador no fim fecha o cartão');
 assert.deepEqual(takeTyped('"Souza, Ra').done, [], 'vírgula dentro de aspas ainda abertas não fecha cartão');
+assert.equal(mentionQuery('Boa tarde, @ama'), 'ama', '@ depois de espaço abre a lista');
+assert.equal(mentionQuery('@'), '', 'só o @ no começo: lista com a dica');
+assert.equal(mentionQuery('(@ron'), 'ron');
+assert.equal(mentionQuery('fulano@x.com'), null, 'e-mail digitado no texto não abre a lista');
+assert.equal(mentionQuery('Boa tarde, @Amanda Pereira'), null, 'depois de um espaço a menção acabou');
+assert.equal(mentionQuery('texto sem arroba'), null);
 console.log('mail-recipients: tudo certo');

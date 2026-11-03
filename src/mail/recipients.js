@@ -61,3 +61,11 @@ export function takeTyped(text) {
   if ((t.match(/"/g) || []).length % 2) return { done: [], rest: t };
   return ends ? { done: parts.map(parseRecipient), rest: '' } : { done: parts.slice(0, -1).map(parseRecipient), rest: parts[parts.length - 1] || '' };
 }
+
+// @ no corpo (§159): o que vem depois do "@" que está sendo digitado (texto até o cursor), ou null. O "@" precisa estar no começo
+// ou depois de espaço/parêntese — e-mail digitado no texto (fulano@x.com) não abre a lista.
+const MENTION_RE = /(?:^|[\s(])@([^\s@<>()]{0,40})$/;
+export function mentionQuery(before) {
+  const m = MENTION_RE.exec(String(before || ''));
+  return m ? m[1] : null;
+}

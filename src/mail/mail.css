@@ -383,3 +383,10 @@ body.mail-resizing iframe { pointer-events: none; }
 /* Cartãozinho do arrastar para pasta (§155): fora da tela, o navegador só fotografa. */
 .mail-drag-ghost { position: fixed; top: -200px; left: -400px; padding: 24px 0 0 10px; pointer-events: none; }
 .mail-drag-ghost span { display: block; box-sizing: border-box; max-width: 240px; padding: 6px 12px; border-radius: 999px; font: 600 12.5px/1.3 Inter, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #111; background: #F5C400; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+
+/* @ no corpo (§159): lista presa ao cursor; arrastar cartão entre Para/Cc/Cco marca o campo de destino. */
+.mc-sug.mc-mention { position: fixed; left: auto; right: auto; width: 300px; z-index: 80; }
+.mc-mention-hint { cursor: default !important; color: var(--text-5) !important; font-size: 12.5px !important; }
+.mc-chips.drop { outline: 2px dashed var(--ui-info); outline-offset: 2px; border-radius: 8px; background: var(--ui-info-bg); }
+.mc-chip[draggable="true"] { cursor: grab; }
+.mc-body a[href^="mailto:"] { font-weight: 600; text-decoration: none; }
