@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 427,
+ "total": 429,
  "routes": [
   {
    "method": "POST",
@@ -598,6 +598,11 @@
    "file": "crm/routes.js"
   },
   {
+   "method": "POST",
+   "path": "/api/crm/deals/:id/restore",
+   "file": "crm/routes.js"
+  },
+  {
    "method": "PUT",
    "path": "/api/crm/deals/:id/tags",
    "file": "crm/routes.js"
@@ -1170,6 +1175,11 @@
   {
    "method": "GET",
    "path": "/api/mail/inbox-peek",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/invites/tidy",
    "file": "mail.js"
   },
   {

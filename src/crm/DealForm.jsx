@@ -198,7 +198,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
   }
 
   return (
-    <Modal title={editing ? 'Editar negócio' : (form.dealType === 'upsell' ? 'Nova oportunidade de upsell' : 'Novo negócio')} onClose={onCancel} width={820} dirty={dirty}>
+    <Modal title={editing ? 'Editar negócio' : (form.dealType === 'upsell' ? 'Nova venda para cliente atual' : 'Novo negócio')} onClose={onCancel} width={820} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="Empresa *" full>
           {picked ? (
@@ -256,7 +256,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
         <Field label="Tipo">
           <select value={form.dealType} onChange={(e) => set('dealType', e.target.value)}>
             <option value="new">Novo negócio</option>
-            <option value="upsell" disabled={!!picked && !isClient}>Upsell (venda para cliente atual){picked && !isClient ? ' — só para clientes' : ''}</option>
+            <option value="upsell" disabled={!!picked && !isClient}>Venda para cliente atual (upsell){picked && !isClient ? ' — só para clientes' : ''}</option>
           </select>
         </Field>
         <Field label="Responsável">

@@ -337,3 +337,16 @@
 }
 .agd-acc > .ui-btn, .agd-acc > div > .ui-btn { align-self: flex-start; }
 .agd-acc .agd-check { align-self: stretch; }
+
+/* iPad e telas de toque (Fase 3, 2026-11-03): linhas de "Minhas/Outras agendas" com 44 px; a bolinha de cor e as amostras
+   ficam do tamanho do desenho (a regra geral de 44 px do index.html as inflava) e a área de toque cresce por fora. */
+@media (pointer: coarse) {
+  .agd-cal, .agd-with li { min-height: 44px; }
+  .agd-cal-main input { width: 20px; height: 20px; }
+  button.agd-cal-color, button.agd-swatch { min-width: 0 !important; min-height: 0 !important; }
+  .agd-cal-color::after { content: ''; position: absolute; inset: -10px; }
+  .agd-swatch::after { content: ''; position: absolute; inset: -4px; }
+  .agd-swatch { width: 32px; height: 32px; }
+  .agd-cal-color { position: relative; }
+  .agd-cal-x { opacity: 1; }
+}

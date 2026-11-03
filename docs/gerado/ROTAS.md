@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **432 rotas** em **42 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **433 rotas** em **42 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -84,39 +84,39 @@ Arquivos: `server/routes.js`.
 | GET | `/api/projects` | `requireAuth` `payloadStats('GET /api/projects')` |  | `server/routes.js:525` |
 | GET | `/api/projects/versions` | `requireAuth` | segundos) sem servidor de WebSocket, sem pub/sub, sem dependência nova. | `server/routes.js:554` |
 | GET | `/api/projects/lite` | `requireAuth` | inteiro de cada projeto, que já é pesado (é por isso que Pareceres guarda o PDF numa tabela própria em vez de embutir em `projects.data`, ver PROJECT_CONTEXT.md §48). | `server/routes.js:573` |
-| POST | `/api/projects` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:586` |
-| POST | `/api/cnpj/lookup` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:632` |
-| DELETE | `/api/projects/:id` | `requireAuth` | Excluir empresa é físico (fica só a cópia `pre_delete` em project_versions por 1 ano): só administrador — Master ou Super Admin (M12, 2026-10-29). | `server/routes.js:641` |
-| GET | `/api/projects/:id/team-candidates` | `requireAuth` |  | `server/routes.js:655` |
-| GET | `/api/projects/:id/meetings/:meetingId/transcript` | `requireAuth` | Transcrição de uma reunião, sob demanda (a lista de empresas vai sem ela, §138). Mesma regra de acesso da empresa; cliente nunca vê. | `server/routes.js:675` |
-| PATCH | `/api/projects/:id` | `requireAuth` |  | `server/routes.js:686` |
-| POST | `/api/projects/:id/meetings` | `requireAuth` `requireMasterOrPricetax` | Reuniões à mão, mas numa transação travada (não pisa em quem está editando) e sem limite de tamanho prático no texto. Só equipe PRICETAX. Idempotente: mesma data + mesmo… | `server/routes.js:737` |
-| POST | `/api/projects/:id/plan` | `requireAuth` `requireMaster` | Ajustar o cronograma de uma empresa por operações (mesmo motor do /api/connect/companies/:id/plan, mas pela sessão — 2026-10-26): activity.set/add, sub.set/add/move/dele… | `server/routes.js:789` |
-| POST | `/api/_internal/memory-search` | `requireAuth` | recuperada corretamente, com o mesmo isolamento de acesso de qualquer outra rota de projeto. | `server/routes.js:821` |
-| GET | `/api/personal-board` | `requireAuth` `payloadStats('GET /api/personal-board')` |  | `server/routes.js:842` |
-| GET | `/api/personal-board/version` | `requireAuth` `requirePersonalAccess` | Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade, §80, ou o quadro público) alterou o qu… | `server/routes.js:856` |
-| PATCH | `/api/personal-board` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:907` |
-| GET | `/api/personal-board/versions` | `requireAuth` `requirePersonalAccess` | Histórico do quadro pessoal (M11): lista as fotos guardadas e restaura uma (a atual vira uma foto "antes de restaurar", então dá para voltar atrás). | `server/routes.js:954` |
-| GET | `/api/personal-board/versions/:id` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:961` |
-| POST | `/api/personal-board/versions/:id/restore` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:970` |
-| GET | `/api/personal-board/stats` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:990` |
-| GET | `/api/personal-board/stats/day` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:1003` |
-| GET | `/api/notifications` | `requireAuth` `payloadStats('GET /api/notifications')` |  | `server/routes.js:1021` |
-| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:1033` |
-| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:1041` |
-| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:1072` |
-| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:1079` |
-| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:1093` |
-| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:1102` |
-| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:1115` |
-| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:1126` |
-| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1192` |
-| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1252` |
-| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1295` |
-| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1394` |
-| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1437` |
-| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1449` |
-| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1465` |
+| POST | `/api/projects` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:588` |
+| POST | `/api/cnpj/lookup` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:634` |
+| DELETE | `/api/projects/:id` | `requireAuth` | Excluir empresa é físico (fica só a cópia `pre_delete` em project_versions por 1 ano): só administrador — Master ou Super Admin (M12, 2026-10-29). | `server/routes.js:643` |
+| GET | `/api/projects/:id/team-candidates` | `requireAuth` |  | `server/routes.js:657` |
+| GET | `/api/projects/:id/meetings/:meetingId/transcript` | `requireAuth` | Transcrição de uma reunião, sob demanda (a lista de empresas vai sem ela, §138). Mesma regra de acesso da empresa; cliente nunca vê. | `server/routes.js:677` |
+| PATCH | `/api/projects/:id` | `requireAuth` |  | `server/routes.js:688` |
+| POST | `/api/projects/:id/meetings` | `requireAuth` `requireMasterOrPricetax` | Reuniões à mão, mas numa transação travada (não pisa em quem está editando) e sem limite de tamanho prático no texto. Só equipe PRICETAX. Idempotente: mesma data + mesmo… | `server/routes.js:739` |
+| POST | `/api/projects/:id/plan` | `requireAuth` `requireMaster` | Ajustar o cronograma de uma empresa por operações (mesmo motor do /api/connect/companies/:id/plan, mas pela sessão — 2026-10-26): activity.set/add, sub.set/add/move/dele… | `server/routes.js:791` |
+| POST | `/api/_internal/memory-search` | `requireAuth` | recuperada corretamente, com o mesmo isolamento de acesso de qualquer outra rota de projeto. | `server/routes.js:823` |
+| GET | `/api/personal-board` | `requireAuth` `payloadStats('GET /api/personal-board')` |  | `server/routes.js:844` |
+| GET | `/api/personal-board/version` | `requireAuth` `requirePersonalAccess` | Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade, §80, ou o quadro público) alterou o qu… | `server/routes.js:858` |
+| PATCH | `/api/personal-board` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:909` |
+| GET | `/api/personal-board/versions` | `requireAuth` `requirePersonalAccess` | Histórico do quadro pessoal (M11): lista as fotos guardadas e restaura uma (a atual vira uma foto "antes de restaurar", então dá para voltar atrás). | `server/routes.js:956` |
+| GET | `/api/personal-board/versions/:id` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:963` |
+| POST | `/api/personal-board/versions/:id/restore` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:972` |
+| GET | `/api/personal-board/stats` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:992` |
+| GET | `/api/personal-board/stats/day` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:1005` |
+| GET | `/api/notifications` | `requireAuth` `payloadStats('GET /api/notifications')` |  | `server/routes.js:1023` |
+| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:1035` |
+| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:1043` |
+| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:1074` |
+| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:1081` |
+| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:1095` |
+| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:1104` |
+| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:1117` |
+| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:1128` |
+| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1194` |
+| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1254` |
+| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1297` |
+| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1396` |
+| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1439` |
+| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1451` |
+| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1467` |
 
 ## `` — 2 rotas
 
@@ -143,28 +143,28 @@ Arquivos: `server/agenda.js`.
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
 | GET | `/api/agenda` | `requireAuth` |  | `server/agenda.js:31` |
-| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:169` |
-| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:182` |
-| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:191` |
-| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:200` |
-| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:212` |
-| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:223` |
-| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:255` |
-| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:269` |
-| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:282` |
-| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:286` |
-| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:297` |
-| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:301` |
-| GET | `/api/agenda/colors` | `requireAuth` |  | `server/agenda.js:308` |
-| GET | `/api/agenda/people` | `requireAuth` |  | `server/agenda.js:312` |
-| GET | `/api/agenda/with` | `requireAuth` | "Reunião com…": agenda de até 6 pessoas no período, sem assinar (some ao fechar). | `server/agenda.js:317` |
-| GET | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:328` |
-| PUT | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:331` |
-| GET | `/api/agenda/search` | `requireAuth` | Busca nos seus compromissos do Google (um ano para trás e um para frente, como a lupa do Google Agenda). | `server/agenda.js:340` |
-| POST | `/api/agenda/tasks` | `requireAuth` |  | `server/agenda.js:349` |
-| PATCH | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:360` |
-| DELETE | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:364` |
-| POST | `/api/agenda/out-of-office` | `requireAuth` | Ausente: bloco "Fora do escritório" do Google, que recusa sozinho os convites no período (com a mensagem, se pedir). | `server/agenda.js:370` |
+| POST | `/api/agenda/events` | `requireAuth` |  | `server/agenda.js:202` |
+| GET | `/api/agenda/by-uid` | `requireAuth` | Convite de um e-mail: acha o evento na sua agenda pelo UID do arquivo .ics. | `server/agenda.js:215` |
+| GET | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:224` |
+| PATCH | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:233` |
+| DELETE | `/api/agenda/events/:id` | `requireAuth` |  | `server/agenda.js:245` |
+| POST | `/api/agenda/events/:id/respond` | `requireAuth` | Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier). | `server/agenda.js:256` |
+| POST | `/api/agenda/events/:id/reschedule` | `requireAuth` | Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador. | `server/agenda.js:288` |
+| GET | `/api/agenda/accounts` | `requireAuth` |  | `server/agenda.js:302` |
+| PATCH | `/api/agenda/accounts/principal` | `requireAuth` |  | `server/agenda.js:315` |
+| POST | `/api/agenda/accounts/ical` | `requireAuth` |  | `server/agenda.js:319` |
+| PATCH | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:330` |
+| DELETE | `/api/agenda/accounts/:id` | `requireAuth` |  | `server/agenda.js:334` |
+| GET | `/api/agenda/colors` | `requireAuth` |  | `server/agenda.js:341` |
+| GET | `/api/agenda/people` | `requireAuth` |  | `server/agenda.js:345` |
+| GET | `/api/agenda/with` | `requireAuth` | "Reunião com…": agenda de até 6 pessoas no período, sem assinar (some ao fechar). | `server/agenda.js:350` |
+| GET | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:361` |
+| PUT | `/api/agenda/team` | `requireAuth` |  | `server/agenda.js:364` |
+| GET | `/api/agenda/search` | `requireAuth` | Busca nos seus compromissos do Google (um ano para trás e um para frente, como a lupa do Google Agenda). | `server/agenda.js:373` |
+| POST | `/api/agenda/tasks` | `requireAuth` |  | `server/agenda.js:382` |
+| PATCH | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:393` |
+| DELETE | `/api/agenda/tasks/:id` | `requireAuth` |  | `server/agenda.js:397` |
+| POST | `/api/agenda/out-of-office` | `requireAuth` | Ausente: bloco "Fora do escritório" do Google, que recusa sozinho os convites no período (com a mensagem, se pedir). | `server/agenda.js:403` |
 
 ## `/api/agenda/booking` — 2 rotas
 
@@ -260,7 +260,7 @@ Arquivos: `server/connect.js`. Proteção do grupo (`router.use` global): `serve
 | GET | `/api/connect/agenda` |  |  | `server/connect.js:745` |
 | POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:944` |
 
-## `/api/crm` — 88 rotas
+## `/api/crm` — 89 rotas
 
 Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do grupo (`router.use` global): `server/crm/routes.js`: `need('read')`.
 
@@ -329,31 +329,32 @@ Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do 
 | PUT | `/api/crm/deals/:id/tags` | `need('write')` |  | `server/crm/routes.js:209` |
 | POST | `/api/crm/deals/:id/move` | `need('write')` |  | `server/crm/routes.js:210` |
 | DELETE | `/api/crm/deals/:id` | `need('remove')` |  | `server/crm/routes.js:214` |
-| GET | `/api/crm/deals/:id/audit` | `need('remove')` |  | `server/crm/routes.js:215` |
-| GET | `/api/crm/activities` |  | ---- atividades / follow-ups (Fase 3). ownerId=me vira o usuário logado. | `server/crm/routes.js:218` |
-| GET | `/api/crm/activities/:id` |  |  | `server/crm/routes.js:219` |
-| POST | `/api/crm/activities` | `need('write')` |  | `server/crm/routes.js:225` |
-| PATCH | `/api/crm/activities/:id` | `need('write')` `ownActivity` |  | `server/crm/routes.js:229` |
-| POST | `/api/crm/activities/:id/complete` | `need('write')` `ownActivity` |  | `server/crm/routes.js:234` |
-| POST | `/api/crm/activities/:id/cancel` | `need('write')` `ownActivity` |  | `server/crm/routes.js:238` |
-| POST | `/api/crm/activities/:id/reopen` | `need('write')` `ownActivity` |  | `server/crm/routes.js:239` |
-| DELETE | `/api/crm/activities/:id` | `need('remove')` |  | `server/crm/routes.js:240` |
-| GET | `/api/crm/products` |  | ---- produtos (catálogo): todos leem; quem define o que se vende é gestor+ | `server/crm/routes.js:243` |
-| POST | `/api/crm/products` | `need('catalog')` |  | `server/crm/routes.js:244` |
-| PATCH | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:245` |
-| DELETE | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:246` |
-| POST | `/api/crm/notes` | `need('write')` | ---- notas | `server/crm/routes.js:249` |
-| POST | `/api/crm/deals/:id/attachments/review` | `need('write')` | Revisar com a RENATA um anexo do negócio (botão no anexo da nota): grava a revisão como nota no negócio (§131). | `server/crm/routes.js:255` |
-| PATCH | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:269` |
-| DELETE | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:270` |
-| GET | `/api/crm/import/fields` | `need('import')` | ---- importação (planilha) e clientes atuais do painel | `server/crm/routes.js:273` |
-| POST | `/api/crm/import/preview` | `need('import')` |  | `server/crm/routes.js:274` |
-| POST | `/api/crm/import/commit` | `need('import')` |  | `server/crm/routes.js:278` |
-| GET | `/api/crm/import/deals/fields` | `need('import')` |  | `server/crm/routes.js:282` |
-| POST | `/api/crm/import/deals/preview` | `need('import')` |  | `server/crm/routes.js:283` |
-| POST | `/api/crm/import/deals/commit` | `need('import')` |  | `server/crm/routes.js:284` |
-| GET | `/api/crm/bootstrap/preview` | `need('import')` |  | `server/crm/routes.js:288` |
-| POST | `/api/crm/bootstrap/commit` | `need('import')` |  | `server/crm/routes.js:289` |
+| POST | `/api/crm/deals/:id/restore` | `need('remove')` |  | `server/crm/routes.js:215` |
+| GET | `/api/crm/deals/:id/audit` | `need('remove')` |  | `server/crm/routes.js:216` |
+| GET | `/api/crm/activities` |  | ---- atividades / follow-ups (Fase 3). ownerId=me vira o usuário logado. | `server/crm/routes.js:219` |
+| GET | `/api/crm/activities/:id` |  |  | `server/crm/routes.js:220` |
+| POST | `/api/crm/activities` | `need('write')` |  | `server/crm/routes.js:226` |
+| PATCH | `/api/crm/activities/:id` | `need('write')` `ownActivity` |  | `server/crm/routes.js:230` |
+| POST | `/api/crm/activities/:id/complete` | `need('write')` `ownActivity` |  | `server/crm/routes.js:235` |
+| POST | `/api/crm/activities/:id/cancel` | `need('write')` `ownActivity` |  | `server/crm/routes.js:239` |
+| POST | `/api/crm/activities/:id/reopen` | `need('write')` `ownActivity` |  | `server/crm/routes.js:240` |
+| DELETE | `/api/crm/activities/:id` | `need('remove')` |  | `server/crm/routes.js:241` |
+| GET | `/api/crm/products` |  | ---- produtos (catálogo): todos leem; quem define o que se vende é gestor+ | `server/crm/routes.js:244` |
+| POST | `/api/crm/products` | `need('catalog')` |  | `server/crm/routes.js:245` |
+| PATCH | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:246` |
+| DELETE | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:247` |
+| POST | `/api/crm/notes` | `need('write')` | ---- notas | `server/crm/routes.js:250` |
+| POST | `/api/crm/deals/:id/attachments/review` | `need('write')` | Revisar com a RENATA um anexo do negócio (botão no anexo da nota): grava a revisão como nota no negócio (§131). | `server/crm/routes.js:256` |
+| PATCH | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:270` |
+| DELETE | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:271` |
+| GET | `/api/crm/import/fields` | `need('import')` | ---- importação (planilha) e clientes atuais do painel | `server/crm/routes.js:274` |
+| POST | `/api/crm/import/preview` | `need('import')` |  | `server/crm/routes.js:275` |
+| POST | `/api/crm/import/commit` | `need('import')` |  | `server/crm/routes.js:279` |
+| GET | `/api/crm/import/deals/fields` | `need('import')` |  | `server/crm/routes.js:283` |
+| POST | `/api/crm/import/deals/preview` | `need('import')` |  | `server/crm/routes.js:284` |
+| POST | `/api/crm/import/deals/commit` | `need('import')` |  | `server/crm/routes.js:285` |
+| GET | `/api/crm/bootstrap/preview` | `need('import')` |  | `server/crm/routes.js:289` |
+| POST | `/api/crm/bootstrap/commit` | `need('import')` |  | `server/crm/routes.js:290` |
 
 ## `/api/daily` — 5 rotas
 
@@ -478,34 +479,34 @@ Arquivos: `server/mail.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail/status` |  |  | `server/mail.js:43` |
-| GET | `/api/mail/labels` |  |  | `server/mail.js:50` |
-| GET | `/api/mail/threads` |  |  | `server/mail.js:68` |
-| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:86` |
-| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:129` |
-| GET | `/api/mail/messages/:mid/invite` |  | Convite de reunião no e-mail (2026-11-02): lê o text/calendar (ou o .ics) e acha o evento na agenda da pessoa pelo UID, para o cartão com Sim/Talvez/Não, proposta de nov… | `server/mail.js:153` |
-| POST | `/api/mail/invites/tidy` |  | Convites já respondidos (pela agenda, pelo Google ou pelo celular) saem da Entrada ao abrir a Caixa (server/inviteTidy.js). | `server/mail.js:178` |
-| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:193` |
-| POST | `/api/mail/read-all` |  | Marcar todas como lidas (como o ⋮ do Gmail): todas as mensagens não lidas da pasta/pesquisa aberta, não só as carregadas na tela. Até 5.000 por clique (batchModify aceit… | `server/mail.js:217` |
-| GET | `/api/mail/signature` |  |  | `server/mail.js:283` |
-| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:294` |
-| PUT | `/api/mail/signature` |  |  | `server/mail.js:298` |
-| GET | `/api/mail/prefs` |  |  | `server/mail.js:316` |
-| PUT | `/api/mail/prefs` |  |  | `server/mail.js:323` |
-| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:335` |
-| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:342` |
-| POST | `/api/mail/send` |  |  | `server/mail.js:425` |
-| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:447` |
-| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:465` |
-| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:482` |
-| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:518` |
-| POST | `/api/mail/labels` |  |  | `server/mail.js:532` |
-| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:548` |
-| GET | `/api/mail/rules` |  |  | `server/mail.js:581` |
-| POST | `/api/mail/rules` |  |  | `server/mail.js:596` |
-| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:615` |
-| GET | `/api/mail/contacts` |  |  | `server/mail.js:654` |
-| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:682` |
+| GET | `/api/mail/status` |  |  | `server/mail.js:52` |
+| GET | `/api/mail/labels` |  |  | `server/mail.js:59` |
+| GET | `/api/mail/threads` |  |  | `server/mail.js:84` |
+| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:100` |
+| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:143` |
+| GET | `/api/mail/messages/:mid/invite` |  | Convite de reunião no e-mail (2026-11-02): lê o text/calendar (ou o .ics) e acha o evento na agenda da pessoa pelo UID, para o cartão com Sim/Talvez/Não, proposta de nov… | `server/mail.js:167` |
+| POST | `/api/mail/invites/tidy` |  | Convites já respondidos (pela agenda, pelo Google ou pelo celular) saem da Entrada ao abrir a Caixa (server/inviteTidy.js). | `server/mail.js:192` |
+| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:207` |
+| POST | `/api/mail/read-all` |  | Marcar todas como lidas (como o ⋮ do Gmail): todas as mensagens não lidas da pasta/pesquisa aberta, não só as carregadas na tela. Até 5.000 por clique (batchModify aceit… | `server/mail.js:231` |
+| GET | `/api/mail/signature` |  |  | `server/mail.js:297` |
+| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:308` |
+| PUT | `/api/mail/signature` |  |  | `server/mail.js:312` |
+| GET | `/api/mail/prefs` |  |  | `server/mail.js:330` |
+| PUT | `/api/mail/prefs` |  |  | `server/mail.js:337` |
+| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:349` |
+| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:356` |
+| POST | `/api/mail/send` |  |  | `server/mail.js:439` |
+| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:461` |
+| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:479` |
+| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:496` |
+| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:532` |
+| POST | `/api/mail/labels` |  |  | `server/mail.js:546` |
+| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:562` |
+| GET | `/api/mail/rules` |  |  | `server/mail.js:595` |
+| POST | `/api/mail/rules` |  |  | `server/mail.js:610` |
+| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:629` |
+| GET | `/api/mail/contacts` |  |  | `server/mail.js:668` |
+| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:696` |
 
 ## `/api/mail-links` — 13 rotas
 
@@ -513,19 +514,19 @@ Arquivos: `server/mailLinks.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail-links/person` | `needCrm` | Conversas de toda a equipe com um endereço (Caixa de e-mail, ao pesquisar ou clicar num e-mail do painel): a pesquisa da Caixa só vê o Gmail da própria pessoa; aqui entr… | `server/mailLinks.js:211` |
-| GET | `/api/mail-links/company/:id` | `needCrm` |  | `server/mailLinks.js:218` |
-| GET | `/api/mail-links/deal/:id` | `needCrm` |  | `server/mailLinks.js:225` |
-| GET | `/api/mail-links/project/:id` |  |  | `server/mailLinks.js:232` |
-| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:263` |
-| GET | `/api/mail-links/row/:rowId/messages/:mid/attachments/:aid` |  |  | `server/mailLinks.js:302` |
-| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:332` |
-| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:339` |
-| POST | `/api/mail-links/link` | `needWrite` | "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa quando está vazio e, se pedido, cadastra… | `server/mailLinks.js:355` |
-| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:387` |
-| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:396` |
-| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:421` |
-| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:448` |
+| GET | `/api/mail-links/person` | `needCrm` | Conversas de toda a equipe com um endereço (Caixa de e-mail, ao pesquisar ou clicar num e-mail do painel): a pesquisa da Caixa só vê o Gmail da própria pessoa; aqui entr… | `server/mailLinks.js:215` |
+| GET | `/api/mail-links/company/:id` | `needCrm` |  | `server/mailLinks.js:222` |
+| GET | `/api/mail-links/deal/:id` | `needCrm` |  | `server/mailLinks.js:229` |
+| GET | `/api/mail-links/project/:id` |  |  | `server/mailLinks.js:236` |
+| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:267` |
+| GET | `/api/mail-links/row/:rowId/messages/:mid/attachments/:aid` |  |  | `server/mailLinks.js:306` |
+| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:336` |
+| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:343` |
+| POST | `/api/mail-links/link` | `needWrite` | "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa quando está vazio e, se pedido, cadastra… | `server/mailLinks.js:359` |
+| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:391` |
+| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:400` |
+| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:425` |
+| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:452` |
 
 ## `/api/meeting-inbox` — 4 rotas
 

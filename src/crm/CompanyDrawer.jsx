@@ -143,7 +143,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
               ) : <h2 className="crm-h1">{error ? 'Empresa' : 'Carregando…'}</h2>}
             </div>
             <div className="crm-actions">
-              {co && !co.deletedAt && caps.write && co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Criar oportunidade de upsell</button>}
+              {co && !co.deletedAt && caps.write && co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Nova venda para este cliente</button>}
               {co && !co.deletedAt && onOpenRenata && <button type="button" className="crm-btn" onClick={onOpenRenata} title="Abre a RENATA com esta empresa em foco: ela já lê os dados dela"><Sparkles size={14} /> Pedir à RENATA</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={14} /> Criar atividade</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Criar negócio</button>}
@@ -262,11 +262,11 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
               <div className="crm-page-head" style={{ marginBottom: 10 }}>
                 <div className="crm-sub" style={{ margin: 0 }}>Todas as oportunidades desta empresa. O Lead é a primeira etapa de um negócio; ganhar um negócio transforma a empresa em cliente.</div>
                 {caps.write && !co.deletedAt && <div className="crm-actions">
-                  {co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Criar oportunidade de upsell</button>}
+                  {co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Nova venda para este cliente</button>}
                   <button type="button" className="crm-btn crm-btn-primary" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Criar negócio</button>
                 </div>}
               </div>
-              {data.deals.length === 0 && <div className="crm-empty">Nenhum negócio ainda.{co.relationship === 'client' ? ' Esta é uma cliente: que tal abrir uma oportunidade de upsell?' : ' Abra o primeiro para acompanhar esta venda no funil.'}</div>}
+              {data.deals.length === 0 && <div className="crm-empty">Nenhum negócio ainda.{co.relationship === 'client' ? ' Esta é uma cliente: que tal abrir uma nova venda para ela?' : ' Abra o primeiro para acompanhar esta venda no funil.'}</div>}
               {data.deals.length > 0 && (
                 <div className="crm-table-wrap">
                   <table className="crm-table" style={{ minWidth: 640 }}>

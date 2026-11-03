@@ -97,7 +97,8 @@
       /* Alvos de toque (medido em 2026-10-04 a 375px): os botões de ícone da barra superior (início, tema, sair,
          notificações) tinham 23x23 px em TODAS as telas — abaixo do mínimo de 24 px do WCAG e longe dos 44 px
          recomendados. Só no celular; no desktop nada muda. Botão com `title` é, na prática, o botão de ícone. */
-      @media (max-width: 767px) {
+      /* Fase 3 (2026-11-03): vale também para qualquer tela de toque (iPad), não só pela largura. */
+      @media (max-width: 767px), (pointer: coarse) {
         /* Onda 6 (§81): mínimo de 44 px (era 36/40) — esta regra vencia a dos módulos pela especificidade (button[title]). */
         button[title], a[title] { min-width: 44px; min-height: 44px; }
       }

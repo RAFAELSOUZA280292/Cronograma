@@ -3005,7 +3005,6 @@ export default function XFlowScreen({
   const [trashTickets, setTrashTickets] = useState([]);
   const [trashLoaded, setTrashLoaded] = useState(false);
   const [filters, setFilters] = useState(BLANK_FILTERS);
-  const [toastMsg, setToastMsg] = useState('');
   const [affectedCompanies, setAffectedCompanies] = useState([]);
   const [viewMode, setViewMode] = useState(initXflowSub === 'lista' ? 'lista' : 'quadro');
 
@@ -3088,7 +3087,7 @@ export default function XFlowScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function showToast(msg) { setToastMsg(msg); setTimeout(() => setToastMsg(''), 4500); }
+  const showToast = (msg) => notify(msg);
 
   function loadAll() {
     setLoadError(false);
@@ -3156,8 +3155,7 @@ export default function XFlowScreen({
     registerAffectedCompany(res.ticket.affectedCompany);
     setShowNew(false);
     openTicketDetail(res.ticket.id);
-    setToastMsg(`TASK #${res.ticket.number} criada`);
-    setTimeout(() => setToastMsg(''), 4500);
+    notify(`TASK #${res.ticket.number} criada`, { tone: 'success' });
   }
 
   async function createSpinoff(originalTicket) {
@@ -3176,15 +3174,13 @@ export default function XFlowScreen({
     if (action === 'excluir') {
       setTickets((prev) => prev.filter((t) => t.id !== res.ticket.id));
       setTrashTickets((prev) => (trashLoaded ? [res.ticket, ...prev] : prev));
-      setToastMsg(`TASK #${res.ticket.number} movida para a Lixeira`);
-      setTimeout(() => setToastMsg(''), 4500);
+      notify(`TASK #${res.ticket.number} movida para a Lixeira`, { tone: 'success' });
       return;
     }
     if (action === 'restaurar') {
       setTrashTickets((prev) => prev.filter((t) => t.id !== res.ticket.id));
       setTickets((prev) => [res.ticket, ...prev]);
-      setToastMsg(`TASK #${res.ticket.number} restaurada`);
-      setTimeout(() => setToastMsg(''), 4500);
+      notify(`TASK #${res.ticket.number} restaurada`, { tone: 'success' });
       return;
     }
     if (action === 'editar_campo' && payload && payload.field === 'affectedCompany') {
@@ -3202,8 +3198,7 @@ export default function XFlowScreen({
     await apiDelete(`/api/xflow/tickets/${ticketId}`);
     setTrashTickets((prev) => prev.filter((t) => t.id !== ticketId));
     if (openTicketId === ticketId) setOpenTicketId(null);
-    setToastMsg('TASK apagada de vez');
-    setTimeout(() => setToastMsg(''), 4500);
+    notify('TASK apagada de vez', { tone: 'success' });
   }
 
   const openTicket = tickets.find((t) => t.id === openTicketId) || trashTickets.find((t) => t.id === openTicketId);
@@ -3365,11 +3360,6 @@ export default function XFlowScreen({
           onViewed={onTicketViewed}
           backGuardRef={backGuardRef}
         />
-      )}
-      {toastMsg && (
-        <div style={S.toastStack}>
-          <div style={S.toast}>{toastMsg}</div>
-        </div>
       )}
     </div>
   );

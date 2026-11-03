@@ -6,7 +6,7 @@
 
 ## Resumo
 - **120 ferramentas estruturadas** em 12 módulos (47 de consulta, 54 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **427 rotas** no servidor: 73 cobertas por ferramenta própria, 164 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 190 excluídas de propósito.
+- **429 rotas** no servidor: 73 cobertas por ferramenta própria, 165 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 191 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -382,6 +382,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/crm/deals/:id/audit` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/crm/deals/:id/files` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/crm/deals/:id/move` | ferramenta | crm_mover_negocio |
+| `POST /api/crm/deals/:id/restore` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `PUT /api/crm/deals/:id/tags` | ferramenta | crm_definir_tags_negocio |
 | `DELETE /api/crm/deals/:id` | ferramenta | crm_excluir_negocio |
 | `GET /api/crm/deals/:id` | ferramenta | crm_ver_negocio |
@@ -497,6 +498,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/mail/drafts/by-thread/:threadId` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
 | `POST /api/mail/drafts` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
 | `GET /api/mail/inbox-peek` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/invites/tidy` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
 | `PATCH /api/mail/labels/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
 | `GET /api/mail/labels` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
 | `POST /api/mail/labels` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |

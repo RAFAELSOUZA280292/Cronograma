@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-614 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+615 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (81)
+## 2026-11-02 (82)
 
+- `5c40286` 23:59 — Segurança: retira a rota temporária de IP (Railway já descarta cabeçalho forjado); cérebro em dia (§145)
 - `b4eee3c` 23:56 — Segurança: cliente sem chave de API, agendamento com freio, iCal sem IP interno, e-mail só da própria cópia, CSP só relatório; assinatura não perde edição
 - `3698f61` 23:34 — Cérebro: ressalva dos escopos restritos do Gmail na próxima etapa
 - `0c298bc` 23:33 — Cérebro: próxima etapa (e-mail de várias contas) no Estado atual

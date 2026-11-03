@@ -62,6 +62,7 @@ export const crm = {
   updateDeal: (id, body) => apiPatch(`${B}/deals/${id}`, body),
   moveDeal: (id, body) => apiPost(`${B}/deals/${id}/move`, body),
   deleteDeal: (id) => apiDelete(`${B}/deals/${id}`),
+  restoreDeal: (id) => apiPost(`${B}/deals/${id}/restore`, {}),
   dealAudit: (id) => apiGet(`${B}/deals/${id}/audit`),
   activities: (f) => apiGet(`${B}/activities${qs(f)}`),
   createActivity: (body) => apiPost(`${B}/activities`, body),

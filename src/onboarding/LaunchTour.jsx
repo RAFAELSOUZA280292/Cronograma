@@ -124,7 +124,7 @@ export default function LaunchTour({ user, onDone }) {
               </div>
               <a className="lt-link" href={SIGNATURES_DRIVE} target="_blank" rel="noopener noreferrer">Abrir a pasta de assinaturas no Google Drive</a>
               <button type="button" className="lt-btn" onClick={() => setSigOpen(true)} disabled={!sig} title={!sig ? 'Carregando a assinatura' : undefined}><PenLine size={16} aria-hidden="true" /> {sigOk ? 'Ver ou editar a assinatura' : 'Configurar minha assinatura'}</button>
-              <div className="lt-note">Dica: largura 480 px, "Texto antes da assinatura" = Atenciosamente, e "Em negrito" se quiser. Dá para mudar depois em E-mail › Configurar › Assinatura.</div>
+              <div className="lt-note">Dica: escolha o tipo "Imagem" e envie o seu banner da pasta acima (o tamanho já vem certo); em "Texto antes da assinatura" escreva Atenciosamente, e marque "Em negrito" se quiser. Dá para mudar depois em E-mail › Configurar › Assinatura.</div>
             </>
           )}
 

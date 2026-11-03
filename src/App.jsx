@@ -27,7 +27,6 @@ import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 
 import RenataHome from './assistant/RenataHome.jsx';
-import RenataChat from './renata/RenataChat.jsx';
 import { setScreenContext, MODULE_LABELS } from './renata/screenContext.js';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 
@@ -77,6 +76,8 @@ const CrmScreen = lazyRetry(() => import('./crm/CrmScreen.jsx'));
 const XFlowScreen = lazyRetry(() => import('./xflow/XFlow.jsx'));
 const AgendaScreen = lazyRetry(() => import('./agenda/Agenda.jsx'));
 const MailScreen = lazyRetry(() => import('./mail/MailScreen.jsx'));
+// Só baixa quando alguém abre a RENATA (painel lateral/tela inicial).
+const RenataChat = lazyRetry(() => import('./renata/RenataChat.jsx'));
 const MailRadarBlock = lazyRetry(() => import('./mail/MailLinks.jsx').then((m) => ({ default: m.MailRadarBlock })));
 const WhatsAppScreen = lazyRetry(() => import('./whatsapp/WhatsAppScreen.jsx'));
 const MacroOverviewScreen = lazyRetry(() => import('./macro/MacroOverview.jsx'));
@@ -1128,9 +1129,12 @@ function AppScreens({ shellRef, bump }) {
     }
     loadNotifPrefs();
     load();
-    const interval = setInterval(load, 45000);
+    // Aba escondida não consulta; ao voltar, atualiza na hora.
+    const interval = setInterval(() => { if (!document.hidden) load(); }, 45000);
+    const onVisible = () => { if (!document.hidden) load(); };
     window.addEventListener('notifications:refresh', load);
-    return () => { cancelled = true; clearInterval(interval); window.removeEventListener('notifications:refresh', load); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(interval); window.removeEventListener('notifications:refresh', load); document.removeEventListener('visibilitychange', onVisible); };
   }, [currentUser?.id]);
 
 
@@ -1213,8 +1217,13 @@ function AppScreens({ shellRef, bump }) {
     knownProjectVersionsRef.current = new Map();
     let cancelled = false;
     let timer = null;
+    let running = false;
 
     async function poll() {
+      timer = null;
+      // Aba escondida para o laço (a cada 6 s por pessoa era a maior parte das chamadas); ao voltar, confere na hora.
+      if (cancelled || document.hidden) return;
+      running = true;
       try {
         const res = await apiGet(withActingOrg('/api/projects/versions'));
         if (cancelled) return;
@@ -1236,11 +1245,14 @@ function AppScreens({ shellRef, bump }) {
         // Silencioso de propósito — é só um heartbeat, uma falha
         // pontual (rede instável, etc.) não deve virar erro visível.
       }
+      running = false;
       if (!cancelled) timer = setTimeout(poll, 6000);
     }
+    const onVisible = () => { if (!document.hidden && !running && !timer) poll(); };
 
     poll();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; if (timer) clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [currentUser?.id, actingOrg?.id]);
 
   // Aviso de "nova versão" (2026-09-29) — descoberto ao investigar um relatório da Amanda de bug
@@ -1893,6 +1905,17 @@ function AppScreens({ shellRef, bump }) {
     }));
   }, [projects]);
 
+  // WhatsApp desligado (Fase 3 da varredura, 2026-11-03): cartão da tela inicial e menu só com a integração ligada; o master
+  // continua vendo (é quem configura). O endereço /whatsapp segue abrindo a tela, que explica o que falta.
+  const [whatsappOn, setWhatsappOn] = useState(null);
+  const waUserId = currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax') ? currentUser.id : null;
+  useEffect(() => {
+    if (!waUserId) { setWhatsappOn(null); return undefined; }
+    let alive = true;
+    apiGet('/api/whatsapp/status').then((r) => { if (alive) setWhatsappOn(!!(r && r.enabled)); }).catch(() => { if (alive) setWhatsappOn(false); });
+    return () => { alive = false; };
+  }, [waUserId]);
+
   // Casca única (§81, Onda 1): cada render publica em shellRef o que a barra do topo precisa; a barra só re-renderiza
   // quando a assinatura muda (os callbacks são lidos na hora do clique, então nunca ficam velhos).
   const shellSigRef = useRef('');
@@ -1963,7 +1986,7 @@ function AppScreens({ shellRef, bump }) {
   // Caixa de e-mail (2026-11-02): Gmail da própria pessoa; equipe PRICETAX (master/pricetax), nunca 'cliente'.
   const hasMail = hasPareceres;
   // WhatsApp (2026-11-02): número da empresa, caixa compartilhada pela equipe PRICETAX (master/pricetax).
-  const hasWhatsapp = hasPareceres;
+  const hasWhatsapp = hasPareceres && (currentUser.role === 'master' || whatsappOn === true);
   // CRM (2026-09-20): master/super admin sempre; demais só com crm_role definido em "Usuários"; 'cliente' nunca (regra vem pronta do servidor em crmAccess).
   const hasCrm = !!currentUser.crmAccess;
   const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMail && 'mail', hasWhatsapp && 'whatsapp', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres', hasModelos && 'modelos', hasCrm && 'crm'].filter(Boolean);
@@ -2169,14 +2192,14 @@ function AppScreens({ shellRef, bump }) {
     renataNode: (
       <>
         {renataHome && currentUser.role !== 'cliente' && (
-          <RenataChat
+          <React.Suspense fallback={null}><RenataChat
             key={renataHome.n}
             userId={currentUser.id}
             userName={currentUser.name}
             isAdmin={currentUser.role === 'master' || !!currentUser.isSuperAdmin}
             initialQuestion={renataHome.question}
             onClose={() => setRenataHome(null)}
-          />
+          /></React.Suspense>
         )}
         {renataHome && currentUser.role === 'cliente' && (
           <RenataHome
@@ -3576,7 +3599,7 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
       onPickAgenda && { id: 'agenda', Icon: CalendarDays, title: 'Agenda', desc: 'Seus compromissos e horários livres.', onPick: onPickAgenda },
       onPickMail && { id: 'mail', Icon: Mail, title: 'E-mail', desc: 'Sua caixa do Gmail, lida e organizada aqui.', onPick: onPickMail },
       onPickWhatsapp && { id: 'whatsapp', Icon: MessageCircle, title: 'WhatsApp', desc: 'Conversas do WhatsApp da PRICETAX, respondidas pela equipe.', onPick: onPickWhatsapp },
-      onPickXFlow && { id: 'xflow', Icon: Bug, title: 'XFlow', desc: 'TASKs dos produtos internos, do relato à validação.', onPick: onPickXFlow },
+      onPickXFlow && { id: 'xflow', Icon: Bug, title: 'XFlow', desc: 'Pedidos de correção e melhoria dos sistemas da PRICETAX, do relato à validação.', onPick: onPickXFlow },
     ] },
     { id: 'clientes', title: 'Clientes', items: [
       onPickCompany && { id: 'company', Icon: Building2, title: 'Empresas', desc: 'Cronograma de reforma tributária de cada empresa.', onPick: onPickCompany },

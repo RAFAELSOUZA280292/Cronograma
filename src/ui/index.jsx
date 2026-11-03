@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import './ui.css';
 import { useDialog } from '../lib/nav.js';
 import { useSaveState, retryFailedSaves } from '../lib/saveState.js';
+import { notify } from './dialogs.jsx';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
@@ -23,14 +24,20 @@ export function Card({ interactive, onClick, className, children, ...rest }) {
   );
 }
 
+// Botão desligado COM motivo fica tocável (aria-disabled, não `disabled`): o toque/clique mostra o motivo num aviso, porque
+// no iPhone/iPad não existe passar o mouse para ler o `title` (Fase 3 da varredura, 2026-11-03).
+const sayReason = (reason) => (e) => { e.preventDefault(); e.stopPropagation(); notify(reason, { ttlMs: 6000 }); };
+
 // Botão de texto. variant: primary (amarelo — a ação principal da tela) · danger (vermelho — destrutivo) · padrão (secundário).
-// `disabledReason` é OBRIGATÓRIO quando `disabled` (o motivo vira tooltip e texto para leitor de tela): botão desligado sem
-// explicação é botão quebrado para quem usa. `loading` mostra "Aguarde…" e trava.
+// `disabledReason` é OBRIGATÓRIO quando `disabled` (o motivo vira tooltip, aviso ao tocar e texto para leitor de tela): botão
+// desligado sem explicação é botão quebrado para quem usa. `loading` mostra "Aguarde…" e trava.
 export function Button({ variant, size, icon: Icon, children, className, type = 'button', disabled, disabledReason, loading, title, ...rest }) {
-  const off = !!(disabled || loading);
   const reason = disabled && disabledReason ? disabledReason : undefined;
+  const soft = !!reason && !loading;
+  const off = !!(disabled || loading) && !soft;
   return (
-    <button type={type} className={cx('ui-btn', variant, size, className)} disabled={off} title={reason || title} aria-busy={loading || undefined} {...rest}>
+    <button type={type} className={cx('ui-btn', variant, size, className)} disabled={off} title={reason || title} aria-busy={loading || undefined} {...rest}
+      aria-disabled={soft || undefined} onClick={soft ? sayReason(reason) : rest.onClick}>
       {Icon && <Icon size={size === 'sm' ? 13 : 15} aria-hidden="true" />}
       {loading ? 'Aguarde…' : children}
       {reason && <span className="ui-sr">{` — ${reason}`}</span>}
@@ -43,7 +50,8 @@ export function IconButton({ label, icon: Icon, variant, size, className, type =
   if (!label && typeof console !== 'undefined') console.error('IconButton sem label');
   const reason = disabled && disabledReason ? disabledReason : undefined;
   return (
-    <button type={type} className={cx('ui-iconbtn', variant, size, className)} aria-label={label} title={reason ? `${label} — ${reason}` : label} disabled={disabled} {...rest}>
+    <button type={type} className={cx('ui-iconbtn', variant, size, className)} aria-label={label} title={reason ? `${label} — ${reason}` : label} disabled={disabled && !reason} {...rest}
+      aria-disabled={reason ? true : undefined} onClick={reason ? sayReason(`${label}: ${reason}`) : rest.onClick}>
       {Icon && <Icon size={size === 'sm' ? 14 : 16} aria-hidden="true" />}
     </button>
   );

@@ -906,14 +906,14 @@ export function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, i
           <div style={S.fieldHint}>Integração ainda não configurada nesse ambiente.</div>
         ) : googleStatus.connected ? (
           <>
-            <div style={S.fieldHint}>Conectado desde {fmtTs(googleStatus.connectedAt)}. A Previsão de conclusão das suas TASKs no XFlow vira evento no seu Google Calendar automaticamente.</div>
+            <div style={S.fieldHint}>Conectado desde {fmtTs(googleStatus.connectedAt)}. A Previsão de conclusão das suas tarefas no XFlow vira evento no seu Google Calendar automaticamente.</div>
             <button title={googleBusy ? 'Aguarde terminar' : undefined} style={{ ...S.iconBtn, marginTop: 8, width: '100%', justifyContent: 'center' }} disabled={googleBusy} onClick={disconnectGoogle}>
               {googleBusy ? 'Desconectando...' : 'Desconectar Google Calendar'}
             </button>
           </>
         ) : (
           <>
-            <div style={S.fieldHint}>Conecte sua conta do Google pra ver a Previsão de conclusão das suas TASKs do XFlow direto na sua agenda.</div>
+            <div style={S.fieldHint}>Conecte sua conta do Google pra ver a Previsão de conclusão das suas tarefas do XFlow direto na sua agenda.</div>
             <a href="/api/google/oauth/start" style={{ ...S.primaryBtn, marginTop: 8, width: '100%', justifyContent: 'center', textDecoration: 'none' }}>
               Conectar Google Calendar
             </a>

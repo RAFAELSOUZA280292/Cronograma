@@ -207,6 +207,8 @@
 .mail-folder-row .mail-folder { padding-right: 30px; }
 .mail-folder-edit { position: absolute; right: 4px; opacity: 0; }
 .mail-folder-row:hover .mail-folder-edit, .mail-folder-edit:focus-visible { opacity: 1; }
+/* Sem mouse (iPhone/iPad) não há "passar por cima": o lápis fica sempre à mostra, com espaço para o toque (Fase 3, 2026-11-03). */
+@media (hover: none) { .mail-folder-edit { opacity: 1; } .mail-folder-row .mail-folder { padding-right: 48px; } }
 .mail-folder-hint { color: var(--text-5); }
 .mail-folder.drop, .mail-folder-row.drop { background: var(--ui-info-bg); outline: 2px dashed var(--ui-info); outline-offset: -2px; }
 .mail-row[draggable="true"] { -webkit-user-drag: element; }

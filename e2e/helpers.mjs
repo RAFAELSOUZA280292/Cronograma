@@ -63,7 +63,7 @@ const medirContraste = () => {
     const n = w.currentNode; const txt = n.nodeValue.trim(); if (!txt || /^[\p{Extended_Pictographic}\uFE0F\u200D]+$/u.test(txt)) continue;
     const el = n.parentElement; if (!el || seen.has(el)) continue; seen.add(el);
     const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
-    if (cs.visibility === 'hidden' || cs.display === 'none' || r.width === 0 || r.height === 0 || el.closest('[disabled]')) continue;
+    if (cs.visibility === 'hidden' || cs.display === 'none' || r.width === 0 || r.height === 0 || el.closest('[disabled], [aria-disabled="true"]')) continue;
     const fg = parse(cs.color); if (!fg) continue; const bg = bgOf(el);
     const mix = { r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a) };
     const L1 = lum(mix); const L2 = lum(bg); const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);

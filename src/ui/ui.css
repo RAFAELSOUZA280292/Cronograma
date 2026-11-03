@@ -61,12 +61,12 @@ html[data-theme="light"] {
 
 /* ---------- Botão ---------- */
 .ui-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 14px; border-radius: var(--r-lg); border: 1px solid var(--glass-edge); background: var(--glass-fill); box-shadow: var(--glass-shine); color: var(--text-3); font-family: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
-.ui-btn:hover:not(:disabled) { background: var(--glass-fill-hover); border-color: var(--border-3); }
-.ui-btn:disabled { opacity: .5; cursor: default; }
+.ui-btn:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--glass-fill-hover); border-color: var(--border-3); }
+.ui-btn:disabled, .ui-btn[aria-disabled="true"] { opacity: .5; cursor: default; }
 .ui-btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38); color: var(--ui-accent-ink); }
-.ui-btn.primary:hover:not(:disabled) { background: #ffd21f; border-color: #ffd21f; }
+.ui-btn.primary:hover:not(:disabled):not([aria-disabled="true"]) { background: #ffd21f; border-color: #ffd21f; }
 .ui-btn.danger { background: #c9392e; border-color: #c9392e; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22); color: #fff; }
-.ui-btn.danger:hover:not(:disabled) { background: #b3281d; border-color: #b3281d; }
+.ui-btn.danger:hover:not(:disabled):not([aria-disabled="true"]) { background: #b3281d; border-color: #b3281d; }
 .ui-btn.sm { min-height: 30px; padding: 6px 11px; font-size: 12.5px; border-radius: var(--r-md); }
 
 /* ---------- Etiqueta de filtro (chip) ---------- */
@@ -188,13 +188,13 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 /* ---------- IconButton, ErrorState, SaveStatus, Modal/Drawer — Onda 2 ---------- */
 .ui-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .ui-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--text-3); cursor: pointer; transition: background .12s ease, color .12s ease; }
-.ui-iconbtn:hover:not(:disabled) { background: var(--glass-fill-hover); border-color: var(--glass-edge); box-shadow: var(--glass-shine); color: var(--text-1); }
-.ui-iconbtn:disabled { opacity: .45; cursor: default; }
+.ui-iconbtn:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--glass-fill-hover); border-color: var(--glass-edge); box-shadow: var(--glass-shine); color: var(--text-1); }
+.ui-iconbtn:disabled, .ui-iconbtn[aria-disabled="true"] { opacity: .45; cursor: default; }
 .ui-iconbtn.danger { color: var(--ui-danger); }
-.ui-iconbtn.danger:hover:not(:disabled) { background: var(--ui-danger-bg); }
+.ui-iconbtn.danger:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--ui-danger-bg); }
 .ui-iconbtn.sm { width: 30px; height: 30px; border-radius: var(--r-md); }
 .ui-iconbtn:focus-visible, .ui-btn:focus-visible, .ui-toast-action:focus-visible, .ui-toast-x:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-@media (max-width: 767px) { .ui-iconbtn { width: 44px; height: 44px; } .ui-iconbtn.sm { width: 40px; height: 40px; } }
+@media (max-width: 767px), (pointer: coarse) { .ui-iconbtn { width: 44px; height: 44px; } .ui-iconbtn.sm { width: 40px; height: 40px; } }
 .ui-error { padding: 18px; border-radius: var(--r-xl); border: 1px solid rgba(226, 87, 76, .4); background: var(--ui-danger-bg); display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
 .ui-error.compact { padding: 10px 12px; }
 .ui-error-title { font-weight: 800; color: var(--text-1); font-size: var(--fs-md); }

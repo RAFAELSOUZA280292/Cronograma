@@ -73,7 +73,13 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
 
   async function removeDeal() {
     if (!(await askConfirm({ title: `Excluir o negócio "${data.deal.title}"?`, message: 'Ele some do funil; o histórico da empresa registra a exclusão.', confirmLabel: 'Excluir', danger: true }))) return;
-    try { await crm.deleteDeal(dealId); if (onChanged) onChanged(); onClose(); } catch (e) { fail(e); }
+    try { await crm.deleteDeal(dealId); } catch (e) { fail(e); return; }
+    const title = data.deal.title;
+    notify(`Negócio "${title}" excluído.`, {
+      tone: 'success', actionLabel: 'Desfazer', ttlMs: 8000,
+      onAction: () => crm.restoreDeal(dealId).then(() => { notify(`Negócio "${title}" de volta ao funil.`, { tone: 'success' }); if (onChanged) onChanged(); }).catch(fail),
+    });
+    if (onChanged) onChanged(); onClose();
   }
 
   // Mesmo endereço que os links da agenda do Google (App.jsx abre `/crm?negocio=ID`): quem não está logado cai no login e volta para este negócio.

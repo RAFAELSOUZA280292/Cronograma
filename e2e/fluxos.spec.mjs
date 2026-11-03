@@ -65,6 +65,30 @@ test('CRM: negócio da lista abre pelo teclado e a nota fica gravada', async ({ 
   }, { timeout: 10000 }).toBeTruthy();
 });
 
+test('CRM: excluir o negócio pela ficha mostra Desfazer por 8 s e o negócio volta ao funil', async ({ page }) => {
+  await loginUi(page, USERS.master);
+  const api = await apiAs(page, USERS.master);
+  const tag = stamp();
+  const co = await api.post('/api/crm/companies', { legalName: `Empresa Desfazer ${tag} LTDA`, relationship: 'prospect' });
+  expect(co.status, JSON.stringify(co.body)).toBe(201);
+  const deal = await api.post('/api/crm/deals', { title: `Negócio Desfazer ${tag}`, companyId: co.body.company.id });
+  expect(deal.status, JSON.stringify(deal.body)).toBe(201);
+  const id = deal.body.deal.id;
+
+  await page.goto(`/crm?negocio=${id}`);
+  await expect(page.getByRole('heading', { name: `Negócio Desfazer ${tag}` })).toBeVisible();
+  await page.getByRole('button', { name: 'Excluir', exact: true }).click();
+  await page.locator('.ui-dlg').getByRole('button', { name: 'Excluir', exact: true }).click();
+  const toast = page.locator('.ui-toast').filter({ hasText: `Negócio "Negócio Desfazer ${tag}" excluído.` });
+  await expect(toast).toBeVisible();
+  expect((await api.get(`/api/crm/deals/${id}`)).status).toBe(404);
+  await toast.getByRole('button', { name: 'Desfazer' }).click();
+  await expect(page.locator('.ui-toast').filter({ hasText: 'de volta ao funil' })).toBeVisible();
+  await expect.poll(async () => (await api.get(`/api/crm/deals/${id}`)).status, { timeout: 10000 }).toBe(200);
+  const tl = await api.get(`/api/crm/companies/${co.body.company.id}/timeline`);
+  expect(JSON.stringify(tl.body)).toContain('restaurou o negócio');
+});
+
 test('RENATA: pede para lembrar uma preferência, confirma o cartão e ela aparece na aba Preferências', async ({ page }) => {
   await loginUi(page, USERS.master);
   await page.getByRole('button', { name: 'Falar com a RENATA' }).click();
@@ -170,6 +194,8 @@ test('janelas do XFlow (U2): Nova TASK e detalhe usam a janela única; rascunho 
   const nova = page.locator('.ui-frame-overlay.xf-modal').filter({ has: page.getByRole('heading', { name: 'Nova TASK' }) });
   await expect(nova).toBeVisible();
   await expect(nova.getByRole('button', { name: 'Abrir BUG' })).toBeDisabled(); // rodapé fixo da janela, com a trava de campos obrigatórios
+  await nova.getByRole('button', { name: 'Abrir BUG' }).click({ force: true }); // Fase 3: tocar no botão cinza mostra o motivo (no iPad não há passar o mouse)
+  await expect(page.locator('.ui-toast').filter({ hasText: 'Preencha para abrir a TASK' })).toBeVisible();
   await checkAxe(page, 'xflow-nova-task');
   await nova.getByPlaceholder(/Erro ao calcular/).fill(`Rascunho ${tag}`);
   await page.keyboard.press('Escape');

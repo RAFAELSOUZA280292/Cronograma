@@ -84,7 +84,7 @@ export const TIMELINE_KIND = {
   contact_added: 'Contato', contact_updated: 'Contato', contact_removed: 'Contato', note_added: 'Nota', note_removed: 'Nota',
   project_linked: 'Projeto', project_unlinked: 'Projeto',
   activity_created: 'Atividade', activity_updated: 'Atividade', activity_completed: 'Concluída', activity_cancelled: 'Atividade', activity_reopened: 'Atividade', activity_deleted: 'Atividade',
-  deal_created: 'Negócio', deal_updated: 'Negócio', deal_stage_changed: 'Negócio', deal_won: 'Ganho', deal_lost: 'Perda', deal_reopened: 'Negócio', deal_deleted: 'Negócio',
+  deal_created: 'Negócio', deal_updated: 'Negócio', deal_stage_changed: 'Negócio', deal_won: 'Ganho', deal_lost: 'Perda', deal_reopened: 'Negócio', deal_deleted: 'Negócio', deal_restored: 'Negócio',
 };
 
 // Negócios (Fase 2). Cor só marca situação/risco; a etapa usa a cor do funil só num ponto.

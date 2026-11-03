@@ -12,10 +12,10 @@ Não há fila externa (Redis etc.): tudo roda **dentro do processo do servidor**
 | `startRun` | `server/crm/piperun/runs.js:6` | não (chamada em outro lugar) |
 | `startCrmScheduler` | `server/crm/scheduler.js:51` | sim |
 | `startDossier` | `server/dossier.js:397` | não (chamada em outro lugar) |
-| `startMailIndexScheduler` | `server/mailLinks.js:154` | sim |
+| `startMailIndexScheduler` | `server/mailLinks.js:158` | sim |
 | `startStudy` | `server/parecerStudy.js:304` | não (chamada em outro lugar) |
 | `startVersionRetentionJob` | `server/projectVersions.js:189` | sim |
-| `startTodoScheduler` | `server/todoNotifications.js:102` | sim |
+| `startTodoScheduler` | `server/todoNotifications.js:116` | sim |
 | `startRetentionJob` | `server/usageLog.js:98` | sim |
 
 ## Repetições (`setInterval`) encontradas no servidor
@@ -27,10 +27,10 @@ Não há fila externa (Redis etc.): tudo roda **dentro do processo do servidor**
 | setInterval | `server/briefing.js:94` | INTERVAL_MS | `tick` |
 | setInterval | `server/connect.js:137` |  | `() => { const now = Date.now(` |
 | setInterval | `server/crm/scheduler.js:54` | INTERVAL_MS | `tick` |
-| setInterval | `server/mailLinks.js:158` | 20 * 60 * 1000 | `run` |
+| setInterval | `server/mailLinks.js:162` | 20 * 60 * 1000 | `run` |
 | setInterval | `server/projectVersions.js:192` | 24 * 3600 * 1000 | `run` |
 | setInterval | `server/renata/routes.js:17` |  | `() => { const now = Date.now(` |
-| setInterval | `server/routes.js:1386` |  | `() => { const now = Date.now(` |
-| setInterval | `server/todoNotifications.js:105` | 30 * 60 * 1000 | `tick` |
+| setInterval | `server/routes.js:1388` |  | `() => { const now = Date.now(` |
+| setInterval | `server/todoNotifications.js:119` | 30 * 60 * 1000 | `tick` |
 | setInterval | `server/usageLog.js:101` | 24 * 3600 * 1000 | `run` |
 | setInterval | `server/widget.js:36` |  | `() => { const now = Date.now(` |

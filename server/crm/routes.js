@@ -212,6 +212,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     res.json({ deal, cadence: await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
   }));
   router.delete('/deals/:id', need('remove'), h(async (req, res) => res.json(await D.deleteDeal(orgOf(req), actorOf(req), req.params.id))));
+  router.post('/deals/:id/restore', need('remove'), h(async (req, res) => res.json(await D.restoreDeal(orgOf(req), actorOf(req), req.params.id))));
   router.get('/deals/:id/audit', need('remove'), h(async (req, res) => res.json({ logs: await Q.listAudit(orgOf(req), 'deal', req.params.id) })));
 
   // ---- atividades / follow-ups (Fase 3). ownerId=me vira o usuário logado.

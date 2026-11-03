@@ -311,3 +311,20 @@ export async function deleteDeal(orgId, actor, id) {
     return { ok: true };
   });
 }
+
+// "Desfazer" da exclusão (Fase 3 da varredura, 2026-11-03): mesma permissão de excluir; só volta se a empresa ainda existir.
+export async function restoreDeal(orgId, actor, id) {
+  requireUuid(id, 'Negócio');
+  return tx(async (c) => {
+    const { rows } = await c.query(
+      `SELECT d.id, d.title, d.company_id, d.deleted_at, co.deleted_at AS company_deleted_at FROM crm_deals d
+         JOIN crm_companies co ON co.id = d.company_id WHERE d.id=$1 AND d.org_id=$2 FOR UPDATE OF d`, [id, orgId]);
+    const row = rows[0];
+    if (!row || !row.deleted_at) throw new CrmError(404, 'Negócio excluído não encontrado.');
+    if (row.company_deleted_at) throw new CrmError(409, 'A empresa deste negócio foi excluída. Restaure a empresa primeiro.');
+    await c.query('UPDATE crm_deals SET deleted_at=NULL, deleted_by=NULL, updated_at=now(), updated_by=$1 WHERE id=$2', [actor.id || null, id]);
+    await addAudit(c, { orgId, entityType: 'deal', entityId: id, action: 'restore', actor });
+    await addTimeline(c, { orgId, companyId: row.company_id, entityType: 'deal', entityId: id, eventType: 'deal_restored', actor, summary: `${actor.name} restaurou o negócio "${row.title}".`, data: { dealId: id } });
+    return { ok: true };
+  });
+}

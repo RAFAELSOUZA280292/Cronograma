@@ -153,6 +153,7 @@ Tudo sob `/api/crm` (cookie) e espelhado em `/api/connect/crm` (chave). Todas ex
 | PATCH | `/deals/:id` | write (negócio **fechado**: só `remove`) | campos, `items[]` | `{deal}` | 403 "Negócio já fechado: só gestores podem editar." |
 | POST | `/deals/:id/move` | write | `stageId, lostReason, lostDetail` | `{deal, cadence}` (+ `autoCopy`) | 400 "Escolha o motivo da perda."; 404 etapa |
 | DELETE | `/deals/:id` | remove | — | `{ok}` | 404 |
+| POST | `/deals/:id/restore` | remove | — | `{ok}` ("Desfazer" da ficha, §147) | 404 "Negócio excluído não encontrado."; 409 empresa excluída |
 | GET | `/deals/:id/audit` | remove | — | `{logs[]}` | — |
 | PUT | `/deals/:id/tags` | write | `tags[]` (≤30) | `{tags[]}` | 400 |
 | POST | `/leads` | write | `companyName, contactName, phone, email, cnpj, companyData, title, source, force` | 201 `{deal, company, contact, cadence}` | 409 empresa parecida |

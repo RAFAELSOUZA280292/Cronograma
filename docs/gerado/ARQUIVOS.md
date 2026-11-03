@@ -4,13 +4,13 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 197 arquivos
+## `server/` — 198 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `server/accessLog.js` | 163 |  |
 | `server/activityDictionary.js` | 182 | Dicionário de atividades (2026-10-19, pedido do Rafael: "um mega dicionário de todas as atividades"; ver PROJECT_CONTEXT.md §80). |
-| `server/agenda.js` | 383 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
+| `server/agenda.js` | 416 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
 | `server/agendaBooking.js` | 248 | Link público de agendamento (2026-11-02, noite; Rafael: "um link público para minha agenda… parceiros sem ler o nome do |
 | `server/agendaForm.js` | 84 | Regras do formulário de compromisso da Agenda (criar e editar) e da proposta de novo horário — puras, testadas em |
 | `server/agendaTeam.js` | 220 | Agenda como a do Google, parte 2 (2026-11-02, noite; Rafael: "me inscrever na agenda dos meus funcionários e dos meus sócios", |
@@ -52,7 +52,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/dealExport.js` | 76 | Exportação dos negócios para Excel (2026-10-28, §116c): mesmos filtros da lista/quadro, com os dados de contato (e-mail, telefone, link do WhatsApp). |
 | `server/crm/dealImporter.js` | 302 | CRM — importação de NEGÓCIOS a partir de planilha (Fase 2b, 2026-09-20, PROJECT_CONTEXT.md §58). |
 | `server/crm/dealQueries.js` | 176 | CRM — consultas de negócios/pipeline (Fase 2). Somente leitura. |
-| `server/crm/deals.js` | 314 | CRM — negócios (Fase 2, 2026-09-20, PROJECT_CONTEXT.md §55). Mesma regra da |
+| `server/crm/deals.js` | 331 | CRM — negócios (Fase 2, 2026-09-20, PROJECT_CONTEXT.md §55). Mesma regra da |
 | `server/crm/duplicates.js` | 61 | Detecção de duplicidade (PRD 42). CNPJ igual = bloqueia; nome parecido ou |
 | `server/crm/errors.js` | 8 |  |
 | `server/crm/extras.js` | 239 | CRM — campos que o PipeRun tinha e o CRM não: MRR do negócio, tags e prazo (SLA) por etapa (§85). Só colunas/tabelas NOVAS e aditivas. |
@@ -73,7 +73,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/products.js` | 99 | CRM — catálogo de produtos/serviços (Fase 2). Sem timeline (não pertence a uma |
 | `server/crm/projectSummary.js` | 38 | Resumo SOMENTE-LEITURA de um projeto do cronograma pra ficha da empresa do |
 | `server/crm/queries.js` | 255 | CRM — consultas (somente leitura). Ver service.js pras escritas. |
-| `server/crm/routes.js` | 300 | CRM PRICETAX — rotas (/api/crm). Fase 1 (2026-09-20, PROJECT_CONTEXT.md §54). |
+| `server/crm/routes.js` | 301 | CRM PRICETAX — rotas (/api/crm). Fase 1 (2026-09-20, PROJECT_CONTEXT.md §54). |
 | `server/crm/scheduler.js` | 58 | CRM — agendador de lembretes (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/service.js` | 693 | CRM PRICETAX — camada de serviço (Fase 1, 2026-09-20, PROJECT_CONTEXT.md §54). |
 | `server/crm/text.js` | 90 | Normalizações de texto compartilhadas pelo CRM (busca, duplicidade, import). |
@@ -81,7 +81,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/xlsxExport.js` | 114 | Exportação nativa para Excel (2026-10-28, §116c): planilha .xlsx com visual (cabeçalho, linhas alternadas, filtro, cabeçalho fixo, links clicáveis). |
 | `server/daily.js` | 75 | "Meu dia" (2026-10-05, §77): preferências de conteúdo diário + boas-vindas na primeira entrada. Só o próprio usuário |
 | `server/dailyContent.js` | 222 | Conteúdo diário ("Meu dia", 2026-10-05, §77): evangelho, versículo, sabedoria, horóscopo, horóscopo chinês e inspiração. |
-| `server/db.js` | 1668 |  |
+| `server/db.js` | 1670 |  |
 | `server/documentTemplates.js` | 260 | Modelos de documentos (2026-10-05, §78) — irmã da aba Pareceres: biblioteca de modelos para sócios e colaboradores. Um MODELO |
 | `server/dossier.js` | 454 | Dossiê do cliente (2026-10-02, pedido da Amanda via Rafael: "um compilado de todas as reuniões |
 | `server/embeddings.js` | 63 | Embeddings pra busca semântica da RENATA (Fase 3, 2026-09 — ver |
@@ -116,9 +116,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
 | `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
-| `server/mail.js` | 690 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
+| `server/mail.js` | 704 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
+| `server/mailCache.js` | 46 | Memória curta da Caixa de e-mail (Fase 2 da varredura de 02/11, velocidade). Só na memória do processo, nunca no banco: |
 | `server/mailCompose.js` | 493 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
-| `server/mailLinks.js` | 453 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
+| `server/mailLinks.js` | 457 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
 | `server/mailLinksCore.js` | 329 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
 | `server/mailLinksSchema.js` | 65 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Só aditivo; chamado por initDb(). O índice guarda SÓ metadados (ids, assunto, |
 | `server/materialText.js` | 152 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
@@ -178,7 +179,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/retrievalScope.js` | 32 | Escopo da busca na memória do projeto (2026-10-31). A etapa que interpreta a pergunta (resolveQuery) PROPÕE um tipo de trecho (`kind`) e uma reunião-alvo; a busca os |
 | `server/richNote.js` | 70 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1496 |  |
+| `server/routes.js` | 1498 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 47 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
@@ -193,7 +194,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/taskLinkSuggest.js` | 167 | Sugestão da atividade do cronograma para cada tarefa que sai de uma transcrição (Fase 2 do plano, 2026-10-13; |
 | `server/taskLinks.js` | 271 | Vínculo tarefa de reunião → atividade do cronograma (plano em docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md, Fase 1, 2026-10-13). |
 | `server/teamDay.js` | 177 | "Dia da equipe" (2026-10-29, pedido do Rafael): para cada pessoa da equipe (master e pricetax, as únicas medidas), num dia de Brasília: |
-| `server/todoNotifications.js` | 109 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
+| `server/todoNotifications.js` | 123 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
 | `server/tours.js` | 20 | Boas-vindas de lançamento (shared/launchTour.js): POST /api/tours/:id/done grava users.preferences.tours[id] = agora. |
 | `server/usageLog.js` | 103 | Rastreador de uso (Central de Inteligência Operacional). Recebe fatias de tempo do app: quanto tempo a aba ficou visível |
 | `server/usagePolicy.js` | 33 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
@@ -230,22 +231,22 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 | `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 234 arquivos
+## `src/` — 235 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3816 |  |
+| `src/App.jsx` | 3839 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
-| `src/agenda/Agenda.jsx` | 726 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
+| `src/agenda/Agenda.jsx` | 729 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/AgendaExtras.jsx` | 212 | Peças da Agenda "como a do Google", parte 2 (2026-11-02, §138): Criar › Tarefa e Ausente, detalhe de tarefa e de compromisso de |
 | `src/agenda/AgendaSidebar.jsx` | 226 | Menu lateral da Agenda, como o do Google Agenda (2026-11-02, §138): Criar (Evento, Tarefa, Ausente), mini-calendário do mês, |
 | `src/agenda/BookingDialog.jsx` | 125 | "Meu link de agendamento" (§139): a própria pessoa liga, configura, copia, troca e desliga o link público da SUA agenda. |
 | `src/agenda/EventDetail.jsx` | 207 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 351 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/PublicBooking.jsx` | 142 | Página pública de agendamento (/agendar/:token, §139). Sem login. Quem abre vê só os horários livres e os blocos "Ocupado" da |
-| `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
+| `src/agenda/RenataAgendaBriefing.jsx` | 710 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
 | `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
-| `src/agenda/agenda.css` | 340 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
+| `src/agenda/agenda.css` | 353 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
 | `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
 | `src/agenda/dayLoad.js` | 188 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |
@@ -279,7 +280,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/ContactLinks.jsx` | 80 | Telefone, WhatsApp e e-mail do contato como links de um toque (ligar, abrir conversa, escrever) e um botão azul que copia o número (só dígitos). |
 | `src/crm/ContactsPage.jsx` | 74 | Lista de contatos (PRD 10). Papel na decisão e força do relacionamento à vista. |
 | `src/crm/CrmScreen.jsx` | 138 | CRM PRICETAX — shell do módulo (Fases 1-3, 2026-09-20, PROJECT_CONTEXT.md §54/§55/§56). |
-| `src/crm/DealDrawer.jsx` | 311 | Ficha do negócio (drawer). Resumo (valor, probabilidade, produtos), Histórico |
+| `src/crm/DealDrawer.jsx` | 317 | Ficha do negócio (drawer). Resumo (valor, probabilidade, produtos), Histórico |
 | `src/crm/DealForm.jsx` | 343 | Cadastro/edição de negócio (estado local + Salvar). A empresa é sempre |
 | `src/crm/DealImportWizard.jsx` | 208 | Importar negócios de planilha (feito pro export "Oportunidades" do PipeRun). Arquivo → colunas → |
 | `src/crm/DealTags.jsx` | 38 | Tags do negócio (vindas do PipeRun ou criadas aqui): chips com remoção e um campo que sugere as tags já existentes. |
@@ -298,7 +299,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/SavedViews.jsx` | 101 | Visões salvas de Negócios (§98): atalhos para uma combinação de filtros + modo (quadro/lista). |
 | `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
-| `src/crm/crmApi.js` | 95 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
+| `src/crm/crmApi.js` | 96 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
 | `src/crm/crmMeta.js` | 546 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/overviewLogic.js` | 68 | Prioridade do dia na Visão geral do CRM (piloto da Onda 2, 2026-10-31). Lógica pura: nada de IA, nada de rede — escolhe e ordena o que já veio do servidor |
@@ -309,7 +310,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/daily/useWelcomeSetup.jsx` | 20 | As boas-vindas aparecem por cima de QUALQUER tela (o App tem dezenas de retornos por módulo), então vivem numa raiz |
 | `src/dev/uiAudit.js` | 150 | Auditor de leitura e acessibilidade de uma tela (2026-10-30, Onda 1 / Q1). SÓ para desenvolvimento: `main.jsx` o carrega apenas com |
 | `src/home/FavoritesBar.jsx` | 138 | Barra de favoritos (2026-11-02, §126) na barra do topo, em todas as telas: atalhos para módulos, empresas, atividades, |
-| `src/home/HomeGrid.jsx` | 213 | Grade da tela inicial (2026-11-02, §126). Fora do modo "Personalizar" só desenha os blocos na ordem/largura da pessoa. |
+| `src/home/HomeGrid.jsx` | 205 | Grade da tela inicial (2026-11-02, §126). Fora do modo "Personalizar" só desenha os blocos na ordem/largura da pessoa. |
+| `src/home/HomeGridDnd.jsx` | 26 | Arrastar da tela inicial: só carregado ao entrar em "Personalizar" (o dnd-kit saía no pacote principal de todo mundo). |
 | `src/home/MySpace.jsx` | 99 | Bloco "Meu espaço" da tela inicial (2026-11-02, §126): título, anotação em texto simples e links próprios. A pessoa pode ter |
 | `src/home/homeCss.js` | 29 | Layout da tela inicial (2026-10-30): uma única coluna de conteúdo de 1240 px. Desde 02/11/2026 (§126) os blocos ficam na grade |
 | `src/home/homePrefs.js` | 94 | Preferências da tela inicial e favoritos (2026-11-02, §126), guardadas no servidor (GET/PUT /api/home-prefs) para valerem em |
@@ -346,7 +348,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/lib/subStats.js` | 12 | Números de uma atividade para o velocímetro (2026-10-19): subatividades concluídas (feitas), puladas e quantas faltam. "Pulada" é uma subatividade marcada como |
 | `src/lib/usageTracker.js` | 82 | Rastreador de uso do app (Central de Inteligência Operacional). Conta, a cada 15 s, se a aba está visível (conectado) e se |
 | `src/lib/useAutosave.js` | 69 | Autosave de um valor inteiro (Onda 4, §81): preferências, visões, avatar… Regra única do app: campo sempre editável, grava |
-| `src/lib/xlsxLoader.js` | 3 | A biblioteca de planilhas (xlsx, ~280 KB) só é baixada quando alguém exporta para Excel — antes entrava no pacote principal de todo mundo. |
+| `src/lib/xlsxLoader.js` | 4 | A biblioteca de planilhas só é baixada quando alguém exporta para Excel — antes entrava no pacote principal de todo mundo. |
 | `src/macro/Gaps.jsx` | 155 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08): o que as outras empresas têm de "atividade-padrão" e este cronograma não. |
 | `src/macro/Inventory.jsx` | 452 | Levantamento (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md) — todas as atividades de todas as empresas |
 | `src/macro/MacroOverview.jsx` | 311 | Visão Geral (antes "Visão Macro"; 2026-08, pedido do Rafael) — quadro de cronograma geral pra |
@@ -361,7 +363,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/mail/MailLinks.jsx` | 344 | E-mail ligado ao CRM e às Empresas (§130). Selo da conversa ("Cliente · KUHN", "Lead · OKUBO · Proposta", "Parceiro · Tróia"), |
 | `src/mail/MailScreen.jsx` | 1047 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
 | `src/mail/SignatureDialog.jsx` | 142 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
-| `src/mail/mail.css` | 302 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
+| `src/mail/mail.css` | 304 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
 | `src/mail/mailImage.js` | 94 | Imagens da Caixa de e-mail (pacote de personalização, 2026-11-02): imagem colada/arrastada no corpo e imagem própria da |
 | `src/mail/mailIntent.js` | 22 | Pedidos de outras telas para a Caixa de e-mail (sem prop drilling): abrir uma conversa (§130) ou escrever para alguém já |
 | `src/mail/mailLinks.css` | 55 | E-mail ligado ao CRM (§130): selo, faixa "Empresa fora do CRM", aba E-mails e bloco do cockpit. Só tokens do tema. */ |
@@ -456,7 +458,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/datetime.css` | 47 | Campos de data e horário (DateTimeFields.jsx). Usa as variáveis de tema do app (claro/escuro) e o amarelo da marca. */ |
 | `src/ui/dialog.jsx` | 57 | Modal/gaveta acessível (Onda 1, §81): troque `<div ... onClick={fechar}>` do overlay por <DialogOverlay onClose={fechar} ...>. |
 | `src/ui/dialogs.jsx` | 130 | Diálogos e avisos globais (Onda 2, §81) — o jeito único de confirmar, pedir um texto e avisar. |
-| `src/ui/index.jsx` | 278 | Peças visuais comuns (2026-10-04, §72) — ver ui.css. Só apresentação: nenhuma lógica de negócio aqui, quem usa |
+| `src/ui/index.jsx` | 286 | Peças visuais comuns (2026-10-04, §72) — ver ui.css. Só apresentação: nenhuma lógica de negócio aqui, quem usa |
 | `src/ui/statusDot.js` | 9 | Cor da BOLINHA de um selo de status (2026-10-30). Os selos mostram o texto em cor neutra e a categoria só na bolinha: cor neon como cor de TEXTO |
 | `src/ui/tableKit.jsx` | 87 | Tabela profissional (Onda 3, U3): peças que se encaixam nas tabelas que já existem (o `<table>` e as células de cada módulo ficam como estão): |
 | `src/ui/tableLogic.js` | 75 | Tabela profissional (Onda 3, U3): lógica pura de seleção em massa, colunas escolhidas e resumo de lote. Sem React nem rede (testável em Node). |
@@ -467,4 +469,4 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/whatsapp/whatsapp.css` | 104 | WhatsApp (2026-11-02). Duas colunas no computador; uma no celular (abaixo de 768 px). Mesmos tokens da Caixa de e-mail. */ |
 | `src/widget/WidgetSection.jsx` | 196 |  |
 | `src/widget/scriptableScript.js` | 190 | Script do Scriptable (iOS) colado pelo usuário — mostra atrasadas, vencem hoje e próxima reunião. |
-| `src/xflow/XFlow.jsx` | 3377 |  |
+| `src/xflow/XFlow.jsx` | 3367 |  |

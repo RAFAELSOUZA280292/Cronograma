@@ -10,7 +10,7 @@ import { requireAuth } from './auth.js';
 import { canAccessProject } from './routes.js';
 import { isClientUser } from './clientView.js';
 import { pool } from './db.js';
-import { getConnectionStatus, listEvents, respondToEvent, googleConfigured, getEventDetail, findEventByICalUID, savePanelEvent, respondWithNote, rescheduleEvent, cancelPanelEvent } from './googleCalendar.js';
+import { getConnectionStatus, getAuthedClientForUser, listEvents, respondToEvent, googleConfigured, getEventDetail, findEventByICalUID, savePanelEvent, respondWithNote, rescheduleEvent, cancelPanelEvent } from './googleCalendar.js';
 import { brInstant, parseEventForm, parseRange, proposalComment, withDeadline } from './agendaForm.js';
 import { crmAgendaEvents } from './crm/agendaFeed.js';
 import { linkedGoogleEventIds } from './crm/googleSync.js';
@@ -37,52 +37,60 @@ router.get('/', requireAuth, async (req, res, next) => {
     if (Number.isNaN(Date.parse(String(start))) || Number.isNaN(Date.parse(String(end)))) return res.status(400).json({ message: 'start e end precisam ser datas válidas (AAAA-MM-DD ou ISO).' });
 
     const warnings = [];
-    let status = { connected: false };
-    try { status = await withDeadline(getConnectionStatus(req.user.id), 10000, 'A conexão com o Google'); } catch (e) { console.error('Agenda: status do Google (ignorado):', e.message); warnings.push(e.message); }
-    const events = [];
-    const principal = await principalPrefs(req.user.id);
+    const [status, principal, subscriptions] = await Promise.all([
+      withDeadline(getConnectionStatus(req.user.id), 10000, 'A conexão com o Google').catch((e) => { console.error('Agenda: status do Google (ignorado):', e.message); warnings.push(e.message); return { connected: false }; }),
+      principalPrefs(req.user.id),
+      listSubscriptions(req.user.id).catch((e) => { console.error('Agenda: agendas da equipe (ignorado):', e.message); return null; }),
+    ]);
+    // Um cliente do Google só por requisição (eram três: agenda, tarefas e equipe; token vencido virava três renovações).
+    let client = null;
+    if (status.connected) {
+      try { client = await getAuthedClientForUser(req.user.id); } catch (e) { console.error('Agenda: cliente do Google (ignorado):', e.message); }
+    }
 
-    if (status.connected && principal.calendarEnabled) {
+    // Blocos independentes ao mesmo tempo (eram em fila: a soma dos prazos chegava a ~1 min); a ordem da lista final é a de antes.
+    const googleBlock = async () => {
+      if (!status.connected || !principal.calendarEnabled) return [];
       try {
-        const googleEvents = await withDeadline(listEvents(req.user.id, start, end), 15000, 'O Google Calendar');
+        const [googleEvents, mirrored] = await Promise.all([
+          withDeadline(listEvents(req.user.id, start, end, client), 15000, 'O Google Calendar'),
+          linkedGoogleEventIds(req.user.id),
+        ]);
         // Atividade do CRM espelhada no Google aparece UMA vez: some o evento do Google, fica a atividade (que abre o CRM).
-        const mirrored = await linkedGoogleEventIds(req.user.id);
-        events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))).map((ev) => ({ ...ev, account: 'principal', color: eventColorOf(ev.colorId) || principal.color, ...(ev.colorId ? { calendarColor: principal.color } : {}) })));
+        return googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))).map((ev) => ({ ...ev, account: 'principal', color: eventColorOf(ev.colorId) || principal.color, ...(ev.colorId ? { calendarColor: principal.color } : {}) }));
       } catch (e) {
         console.error('Agenda: falha ao ler o Google Calendar (ignorado):', e.message);
-        warnings.push(/invalid_grant/i.test(String(e.message)) ? 'A conexão com o Google expirou: reconecte em Meu perfil › Agenda.' : e.deadline ? e.message : 'Não consegui ler o seu Google Calendar agora; o resto da agenda está aqui.');
+        return { warning: /invalid_grant/i.test(String(e.message)) ? 'A conexão com o Google expirou: reconecte em Meu perfil › Agenda.' : e.deadline ? e.message : 'Não consegui ler o seu Google Calendar agora; o resto da agenda está aqui.' };
       }
-    }
+    };
 
     // Agendas extras da pessoa (§128): outra conta Google, Microsoft, link iCal. Só as dela; uma com problema não derruba a tela.
-    let extra = { events: [], accounts: [] };
-    try { extra = await extraEvents(req.user.id, start, end); } catch (e) { console.error('Agenda: falha ao ler agendas extras (ignorado):', e.message); }
-    events.push(...extra.events);
+    const extraBlock = () => extraEvents(req.user.id, start, end).catch((e) => { console.error('Agenda: falha ao ler agendas extras (ignorado):', e.message); return { events: [], accounts: [] }; });
 
-    const { rows: ticketRows } = await pool.query(
-      `SELECT ticket_number, title, data FROM xflow_tickets WHERE org_id=$1 AND assignee_id=$2 AND deleted=false`,
-      [req.user.orgId, req.user.id]
-    );
-    for (const r of ticketRows) {
-      const d = r.data || {};
-      if (d.expectedCompletionAt && d.expectedCompletionAt >= startDate && d.expectedCompletionAt <= endDate) {
-        events.push({
-          id: `xflow-completion-${r.ticket_number}`,
-          source: 'xflow_ticket',
-          title: `TASK #${r.ticket_number} — ${r.title}`,
-          description: 'Previsão de conclusão definida no XFlow.',
-          start: d.expectedCompletionAt,
-          end: d.expectedCompletionAt,
-          allDay: true,
-          status: 'confirmed',
-          link: `#${r.ticket_number}`,
-        });
-      }
-    }
+    const ticketBlock = async () => {
+      const { rows: ticketRows } = await pool.query(
+        `SELECT ticket_number, title, data->>'expectedCompletionAt' AS expected FROM xflow_tickets WHERE org_id=$1 AND assignee_id=$2 AND deleted=false`,
+        [req.user.orgId, req.user.id]
+      );
+      return ticketRows.filter((r) => r.expected && r.expected >= startDate && r.expected <= endDate).map((r) => ({
+        id: `xflow-completion-${r.ticket_number}`,
+        source: 'xflow_ticket',
+        title: `TASK #${r.ticket_number} — ${r.title}`,
+        description: 'Previsão de conclusão definida no XFlow.',
+        start: r.expected,
+        end: r.expected,
+        allDay: true,
+        status: 'confirmed',
+        link: `#${r.ticket_number}`,
+      }));
+    };
 
     const myName = (req.user.name || '').trim().toLowerCase();
-    if (myName) {
-      const { rows: projectRows } = await pool.query('SELECT id, data, org_id FROM projects WHERE org_id=$1', [req.user.orgId]);
+    const activityBlock = async () => {
+      if (!myName) return [];
+      // Só a empresa e as atividades: o documento inteiro (reuniões, histórico…) passa de 10 MB em produção.
+      const { rows: projectRows } = await pool.query("SELECT id, jsonb_build_object('company', data->'company', 'activities', data->'activities') AS data, org_id FROM projects WHERE org_id=$1", [req.user.orgId]);
+      const out = [];
       for (const p of projectRows) {
         if (!canAccessProject(req.user, p.data, p.org_id)) continue; // só as empresas que a pessoa pode abrir (cliente por CNPJ, equipe sem acesso a Empresas não vê)
         const activities = (p.data && p.data.activities) || [];
@@ -93,7 +101,7 @@ router.get('/', requireAuth, async (req, res, next) => {
             || (a.participants || []).some((n) => (n || '').trim().toLowerCase() === myName);
           if (!isMine || !a.date) continue;
           if (a.date < startDate || a.date > endDate) continue;
-          events.push({
+          out.push({
             id: `activity-${p.id}-${a.id}`,
             source: 'activity',
             title: `${a.title} — ${companyLabel}`,
@@ -107,27 +115,40 @@ router.get('/', requireAuth, async (req, res, next) => {
           });
         }
       }
-    }
+      return out;
+    };
 
     // CRM (Fase 3): atividades em aberto em que o usuário é o responsável. Isolado —
     // se o CRM falhar, a Agenda continua igual à de antes.
-    try { events.push(...await withDeadline(crmAgendaEvents(req.user, startDate, endDate), 10000, 'As atividades do CRM')); } catch (e) { console.error('Agenda: falha ao ler atividades do CRM (ignorado):', e.message); }
+    const crmBlock = () => withDeadline(crmAgendaEvents(req.user, startDate, endDate), 10000, 'As atividades do CRM').catch((e) => { console.error('Agenda: falha ao ler atividades do CRM (ignorado):', e.message); return []; });
 
     // Tarefas do Google com prazo no período (§138). Sem a API ligada ou sem o escopo, simplesmente não aparecem.
-    if (status.connected) {
-      try { events.push(...await withDeadline(listTasks(req.user.id, startDate, endDate), 8000, 'As Tarefas do Google')); } catch (e) { console.error('Agenda: tarefas (ignorado):', e.message); }
-    }
+    const tasksBlock = () => (status.connected
+      ? withDeadline(listTasks(req.user.id, startDate, endDate, client), 8000, 'As Tarefas do Google').catch((e) => { console.error('Agenda: tarefas (ignorado):', e.message); return []; })
+      : []);
+
     // Agendas da equipe assinadas (Outras agendas, §138): só o que o Google libera para a própria pessoa (detalhes ou livre/ocupado).
-    let team = { subscriptions: [], calendars: [] };
-    try {
-      const subscriptions = await listSubscriptions(req.user.id);
-      team.subscriptions = subscriptions;
-      if (status.connected && subscriptions.some((x) => x.show)) {
-        const t = await withDeadline(teamEvents(req.user.id, subscriptions, start, end), 15000, 'As agendas da equipe');
-        events.push(...t.events);
-        team.calendars = t.calendars;
-      }
-    } catch (e) { console.error('Agenda: agendas da equipe (ignorado):', e.message); warnings.push(e.deadline ? e.message : 'Não consegui ler as agendas da equipe agora.'); }
+    const teamBlock = async () => {
+      const team = { subscriptions: subscriptions || [], calendars: [] };
+      if (!subscriptions) return { team, events: [], warning: 'Não consegui ler as agendas da equipe agora.' };
+      try {
+        if (status.connected && subscriptions.some((x) => x.show)) {
+          const t = await withDeadline(teamEvents(req.user.id, subscriptions, start, end, client), 15000, 'As agendas da equipe');
+          team.calendars = t.calendars;
+          return { team, events: t.events };
+        }
+      } catch (e) { console.error('Agenda: agendas da equipe (ignorado):', e.message); return { team, events: [], warning: e.deadline ? e.message : 'Não consegui ler as agendas da equipe agora.' }; }
+      return { team, events: [] };
+    };
+
+    const [googleRes, extra, ticketEvents, activityEvents, crmEvents, taskEvents, teamRes] = await Promise.all([
+      googleBlock(), extraBlock(), ticketBlock(), activityBlock(), crmBlock(), tasksBlock(), teamBlock(),
+    ]);
+    const events = [];
+    if (Array.isArray(googleRes)) events.push(...googleRes); else warnings.push(googleRes.warning);
+    events.push(...extra.events, ...ticketEvents, ...activityEvents, ...crmEvents, ...taskEvents, ...teamRes.events);
+    if (teamRes.warning) warnings.push(teamRes.warning);
+    const { team } = teamRes;
 
     const principalAccount = {
       id: 'principal', provider: 'google', providerLabel: 'Google', label: principal.label || 'Agenda principal (Google)', color: principal.color,
@@ -150,9 +171,21 @@ function googleId(req, res) {
 }
 // Evento de agenda extra ("x:<conta>:<id>")? Então a ação vai para a conta dele (calendarAccounts.js), sempre do próprio usuário.
 const extraOf = (req) => (String(req.params.id || '').length <= 2100 ? parseEventId(req.params.id) : null);
+// Erro da agenda Microsoft (Fase 3 da varredura, 2026-11-03): em português e com o que fazer; o texto original (inglês) só no log.
+function microsoftFail(res, e) {
+  const code = e.code;
+  const fix = 'Abra Agenda › Minhas agendas, toque em Desconectar na conta Microsoft e conecte de novo.';
+  console.warn('[agenda] Microsoft recusou:', code, e.graphCode, String(e.message).slice(0, 300));
+  if (code === 404) return res.status(404).json({ message: 'Evento não encontrado nesta agenda. Ele pode ter sido apagado no Outlook; atualize a Agenda.' });
+  if (code === 401 || /InvalidAuthenticationToken|TokenExpired/i.test(e.graphCode)) return res.status(409).json({ message: `A conexão com a conta Microsoft expirou. ${fix}` });
+  if (code === 403) return res.status(403).json({ message: 'A Microsoft não permitiu esta alteração: só quem criou o compromisso pode mudá-lo, ou a conta não deu permissão de edição. Peça ao organizador ou reconecte a conta em Agenda › Minhas agendas.' });
+  if (code === 429 || code === 503) return res.status(503).json({ message: 'A Microsoft pediu para esperar um pouco. Tente de novo em um minuto.' });
+  if (code === 400) return res.status(400).json({ message: 'A Microsoft não aceitou os dados do compromisso. Confira data, horário e convidados e tente de novo.' });
+  return res.status(502).json({ message: `A Microsoft não respondeu como esperado. Tente de novo em instantes; se continuar, ${fix.charAt(0).toLowerCase()}${fix.slice(1)}` });
+}
 function failGoogle(res, next, e) {
   if (e && e.status) return res.status(e.status).json({ message: e.message });
-  if (e && e.graphCode) return res.status(e.code === 404 ? 404 : e.code === 403 ? 403 : 502).json({ message: e.code === 404 ? 'Evento não encontrado nesta agenda.' : `A Microsoft recusou: ${String(e.message).slice(0, 200)}` });
+  if (e && e.graphCode) return microsoftFail(res, e);
   const code = e && (e.code || (e.response && e.response.status));
   if (code === 404 || code === 410) return res.status(404).json({ message: 'Evento não encontrado no seu Google Calendar.' });
   if (code === 403) return res.status(403).json({ message: 'O Google não permitiu esta alteração neste evento.' });
