@@ -71,11 +71,33 @@ ok('responder à própria mensagem: vai para quem recebeu', mine.to.length === 1
 const q = buildQuote(original, 'reply');
 ok('citação: blockquote no estilo do Gmail', /<blockquote style="margin:0 0 0 0.8ex;border-left:1px solid #cccccc;padding-left:1ex">/.test(q.html));
 ok('citação: linha "Em …, … escreveu:" em horário de Brasília', q.html.includes('Em 02/11/2026 às 10:15, Cliente &lt;cli@empresa.com&gt; escreveu:'), q.html.slice(0, 200));
-ok('citação: sem imagem cid e imagem externa de volta', !/cid:/.test(q.html) && /src="https:\/\/x.com\/i.png"/.test(q.html));
+ok('citação: imagem cid sem parte conhecida sai e imagem externa volta', !/cid:/.test(q.html) && /src="https:\/\/x.com\/i.png"/.test(q.html));
 ok('citação em texto com "> "', q.text.split('\n')[1] === '> Bom dia, tudo bem?');
 const f = buildQuote(original, 'forward');
 ok('encaminhar: bloco de cabeçalho', f.html.includes('---------- Mensagem encaminhada ---------') && f.html.includes('Assunto: Dúvida &lt;IBS&gt;') && f.html.includes('Cc: fin@empresa.com'));
 ok('encaminhar: sem blockquote', !/<blockquote/.test(f.html));
+
+// Imagem embutida do original segue na citação (§160): print colado no corpo e logo da assinatura da Ana (Outlook).
+{
+  const ana = { ...original, html: '<p>Item grifado</p><img src="cid:image001.png@01DC4D1E.7A2B3C40" width="600"><p>Ana</p><img src="cid:image002.png@01DC"><img src="cid:planilha.xlsx@x">',
+    parts: [
+      { partId: '1.2', id: 'att-1', contentId: 'image001.png@01DC4D1E.7A2B3C40', mimeType: 'image/png', filename: 'image001.png', inline: true },
+      { partId: '1.3', id: 'att-2', contentId: '<IMAGE002.png@01dc>', mimeType: 'image/jpeg', filename: 'image002.jpg', inline: false },
+      { partId: '1.4', id: 'att-3', contentId: 'planilha.xlsx@x', mimeType: 'application/vnd.ms-excel', filename: 'planilha.xlsx', inline: false },
+    ] };
+  const fq = buildQuote(ana, 'forward');
+  const cids = [...fq.html.matchAll(/<img[^>]*src="cid:([^"]+)"/g)].map((m) => m[1]);
+  ok('encaminhar: as 2 imagens do corpo seguem com Content-ID novo (Content-ID do Outlook com <> e maiúsculas também)', cids.length === 2 && fq.images.length === 2 && fq.images.every((i, k) => i.cid === cids[k] && /^pt-q\d-[0-9a-f]{8}@pricetax$/.test(i.cid)), [cids, fq.images]);
+  ok('encaminhar: a imagem lembra a parte do original (para buscar os bytes)', fq.images.map((i) => i.partId).join() === '1.2,1.3' && fq.images[1].mimeType === 'image/jpeg');
+  ok('encaminhar: parte que não é imagem não vira imagem', !fq.html.includes('planilha.xlsx'));
+  ok('responder também leva as imagens da citação', buildQuote(ana, 'reply').images.length === 2);
+  const many = { ...ana, html: Array.from({ length: 25 }, (_, k) => `<img src="cid:i${k}@x">`).join(''), parts: Array.from({ length: 25 }, (_, k) => ({ partId: `p${k}`, id: `a${k}`, contentId: `i${k}@x`, mimeType: 'image/png' })) };
+  ok('no máximo 20 imagens na citação', buildQuote(many, 'forward').images.length === 20);
+  const body = composeBody({ html: '<p>Maiara, segue.</p>', signature: null, quote: fq });
+  const mime = buildMime({ from: { name: 'Rafael', email: 'rafael@pricetax.com.br' }, to: [{ name: '', email: 'maiara.morais@pricetax.com.br' }], cc: [], bcc: [], subject: 'Enc: Planilha', html: body.html, text: body.text,
+    inline: fq.images.map((i) => ({ cid: i.cid, mimeType: i.mimeType, data: Buffer.from('PNGDATA') })), attachments: [] });
+  ok('e-mail montado: corpo aponta para as imagens e elas vão embutidas (multipart/related)', /multipart\/related/.test(mime) && fq.images.every((i) => mime.includes(`Content-ID: <${i.cid}>`) && body.html.includes(`cid:${i.cid}`)));
+}
 
 // --- assinatura
 const sig = cleanSignature({ name: 'Rafael Souza', role: 'Diretor <b>', phone: '(41) 3000-0000', email: 'rafael@pricetax.com.br', site: 'www.pricetax.com.br', extra: 'Curitiba\r\nPR' });

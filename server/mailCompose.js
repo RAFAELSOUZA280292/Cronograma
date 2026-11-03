@@ -216,16 +216,36 @@ export function replySubject(subject, mode) {
   return /^(re|res|resp)\s*:/i.test(s) ? s : `Re: ${s}`;
 }
 
-// HTML do e-mail original pronto para citar: higienizado como na leitura, sem imagem embutida (cid: não viaja) e
-// com as imagens externas de volta (quem recebe decide se mostra).
-export function quoteSourceHtml(original) {
-  if (original.html) return sanitizeMailHtml(original.html).html.replace(/ data-pt-src="/g, ' src="');
-  return `<div style="white-space:pre-wrap">${escapeHtml(original.text || '')}</div>`;
+// HTML do e-mail original pronto para citar: higienizado como na leitura e com as imagens externas de volta (quem recebe decide
+// se mostra). Imagem EMBUTIDA no original (cid:, ex.: print colado no corpo, logo da assinatura) segue junto (§160; até 03/11/2026
+// saía e o encaminhado chegava sem o print): cada uma ganha um Content-ID novo, listado em `images` ({ cid, partId, mimeType }) —
+// quem envia busca os bytes no Gmail e embute de novo. Sem a lista (prévia na tela), a imagem embutida fica de fora.
+const QUOTE_IMG = 'https://pt-quote.invalid/';
+const QUOTE_IMG_TYPES = /^image\/(png|jpe?g|gif|webp)$/;
+export const MAX_QUOTE_IMAGES = 20;
+const normCid = (c) => String(c || '').trim().replace(/^<|>$/g, '').toLowerCase();
+export function quoteSourceHtml(original, images) {
+  if (!original.html) return `<div style="white-space:pre-wrap">${escapeHtml(original.text || '')}</div>`;
+  const parts = original.parts || [];
+  const cidUrl = (cid) => {
+    if (!images) return null;
+    const a = parts.find((x) => x.contentId && x.partId && normCid(x.contentId) === normCid(cid) && QUOTE_IMG_TYPES.test(String(x.mimeType || '').toLowerCase()));
+    if (!a) return null;
+    let hit = images.find((i) => i.partId === a.partId);
+    if (!hit) {
+      if (images.length >= MAX_QUOTE_IMAGES) return null;
+      hit = { cid: `pt-q${images.length + 1}-${crypto.randomBytes(4).toString('hex')}@pricetax`, partId: a.partId, mimeType: String(a.mimeType).toLowerCase() };
+      images.push(hit);
+    }
+    return QUOTE_IMG + hit.cid;
+  };
+  return sanitizeMailHtml(original.html, { cidUrl }).html.replace(/ data-pt-src="/g, ' src="').split(QUOTE_IMG).join('cid:');
 }
 
-// original = { from, to, cc, date, subject, html, text }
+// original = { from, to, cc, date, subject, html, text, parts? } → { html, text, images }
 export function buildQuote(original, mode) {
-  const body = quoteSourceHtml(original);
+  const images = [];
+  const body = quoteSourceHtml(original, images);
   const plain = original.text || htmlToText(original.html || '');
   if (mode === 'forward') {
     const rows = [
@@ -236,12 +256,14 @@ export function buildQuote(original, mode) {
     return {
       html: `<div style="${TEXT_STYLE}">${head}${body}</div>`,
       text: `---------- Mensagem encaminhada ---------\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${plain}`,
+      images,
     };
   }
   const intro = `Em ${fmtQuoteDate(original.date)}, ${personText(original.from)} escreveu:`;
   return {
     html: `<div style="${TEXT_STYLE}">${escapeHtml(intro)}<br></div><blockquote style="${QUOTE_STYLE}">${body}</blockquote>`,
     text: `${intro}\n${plain.split('\n').map((l) => `> ${l}`).join('\n')}`,
+    images,
   };
 }
 

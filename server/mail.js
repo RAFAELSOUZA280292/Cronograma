@@ -274,7 +274,18 @@ async function loadOriginal(gmail, messageId) {
     html: parts.html, text: parts.text,
     attachments: parts.attachments.filter((a) => !a.inline && a.partId),
     inline: parts.attachments.filter((a) => a.inline && a.partId && a.contentId),
+    parts: parts.attachments, // todas as partes com arquivo: a citação acha a imagem do corpo pelo Content-ID (§160)
   };
+}
+
+// Prévia da citação na janela de escrever: as imagens embutidas aparecem pela rota de anexo da mensagem original (no envio, viram
+// cid: de novo — buildQuote). Sem a rota, o print do corpo sumia também na prévia.
+export function quotePreviewHtml(orig, quote) {
+  const byCid = new Map(quote.images.map((i) => [i.cid, (orig.parts || []).find((p) => p.partId === i.partId)]));
+  return sanitizeMailHtml(quote.html, { cidUrl: (cid) => {
+    const p = byCid.get(cid);
+    return p && p.id ? `/api/mail/messages/${orig.id}/attachments/${encodeURIComponent(p.id)}?inline=1&type=${encodeURIComponent(p.mimeType)}` : null;
+  } }).html;
 }
 
 async function myAddress(req, gmail) {
@@ -365,15 +376,16 @@ router.get('/compose', async (req, res) => {
     res.json({
       mode, messageId, threadId: orig.threadId, ...recipients,
       subject: replySubject(orig.subject, mode),
-      quotePreview: sanitizeMailHtml(quote.html).html,
-      attachments: mode === 'forward' ? orig.attachments.map(({ partId, filename, mimeType, size }) => ({ partId, filename, mimeType, size })) : [],
+      quotePreview: quotePreviewHtml(orig, quote),
+      // Imagem que já vai dentro do texto encaminhado não aparece de novo como anexo (Outlook marca o print colado como anexo).
+      attachments: mode === 'forward' ? orig.attachments.filter((a) => !quote.images.some((i) => i.partId === a.partId)).map(({ partId, filename, mimeType, size }) => ({ partId, filename, mimeType, size })) : [],
     });
   } catch (e) { fail(res, e); }
 });
 
 // Monta o e-mail de saída (envio e rascunho usam o mesmo caminho, então o rascunho fica igual ao que seria enviado).
 // `b.draftMessageId` + `b.draftParts`: anexos que já estão no rascunho salvo (não precisam subir de novo do navegador).
-async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
+export async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
   const mode = MODES.includes(b.mode) ? b.mode : 'new';
   const to = parseRecipients(b.to); const cc = parseRecipients(b.cc); const bcc = parseRecipients(b.bcc);
   const invalid = [...to.invalid, ...cc.invalid, ...bcc.invalid];
@@ -414,7 +426,14 @@ async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
   const sig = signature && signature.enabled && signatureHasContent(signature) ? signature : null;
   const quote = orig && b.includeQuote !== false ? buildQuote(orig, mode === 'forward' ? 'forward' : 'reply') : null;
   const body = composeBody({ html: String(b.html || ''), signature: sig, quote });
-  const imgErr = sizeError(attachmentsSize(uploads) + attachmentsSize(forwarded) + attachmentsSize(fromDraft) + attachmentsSize(body.images));
+  // Imagens embutidas do original citado (print colado, logo da assinatura): os bytes vêm do Gmail e voltam embutidos (§160).
+  const quoteImages = quote && quote.images.length ? (await mapLimit(quote.images, 4, async (i) => {
+    const part = findPart(orig.payload, i.partId) || {};
+    const pb = part.body || {};
+    const data = pb.attachmentId ? (await gmail.users.messages.attachments.get({ userId: 'me', messageId: orig.id, id: pb.attachmentId })).data.data : pb.data;
+    return data ? { cid: i.cid, mimeType: i.mimeType, data: Buffer.from(data, 'base64url') } : null;
+  })).filter(Boolean) : [];
+  const imgErr = sizeError(attachmentsSize(uploads) + attachmentsSize(forwarded) + attachmentsSize(fromDraft) + attachmentsSize(body.images) + attachmentsSize(quoteImages));
   if (imgErr) return { status: 413, message: imgErr.replace('Os anexos somam', 'Anexos e imagens somam') };
   const threaded = orig && mode !== 'forward';
   const raw = buildMime({
@@ -428,6 +447,7 @@ async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
       ...(body.usesLogo ? [{ cid: LOGO_CID, mimeType: 'image/png', data: LOGO }] : []),
       ...(body.usesSigImage ? [{ cid: SIG_IMAGE_CID, mimeType: sig.image.mimeType, data: Buffer.from(sig.image.data, 'base64') }] : []),
       ...body.images,
+      ...quoteImages,
     ],
     attachments: [...fromDraft, ...forwarded, ...uploads],
     headers: draft ? [[DRAFT_HEADER, draftMeta({ mode, messageId: b.messageId, includeQuote: b.includeQuote, signature: b.signature })]] : [],
@@ -505,7 +525,7 @@ router.get('/drafts/:id', async (req, res) => {
     let quotePreview = '';
     if (meta.mode !== 'new' && ID_RE.test(meta.messageId)) {
       const orig = await loadOriginal(gmail, meta.messageId).catch(() => null);
-      if (orig) quotePreview = sanitizeMailHtml(buildQuote(orig, meta.mode === 'forward' ? 'forward' : 'reply').html).html;
+      if (orig) quotePreview = quotePreviewHtml(orig, buildQuote(orig, meta.mode === 'forward' ? 'forward' : 'reply'));
       else meta.mode = 'new';
     }
     let bodyHtml = msg.html ? draftBodyHtml(msg.html) : (msg.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
