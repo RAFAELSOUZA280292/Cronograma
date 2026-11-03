@@ -1,4 +1,5 @@
 import { noteToText } from './richNote.js';
+import { openChecklistDue } from '../shared/checklistDue.js';
 
 // Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada
 // em memória sobre o quadro, com prévia (o que mudaria, cartão por cartão) e gravação só com confirmação. Funções puras, sem banco —
@@ -75,10 +76,10 @@ export function planOperations(data, operations, ctx) {
     touched.add(card.id);
   };
   const autoDue = (card) => {
-    const latest = (card.checklist || []).map((i) => i.dueDate).filter(isIsoDay).sort().pop() || '';
+    const latest = openChecklistDue(card.checklist); // só subatividades abertas (§163)
     if (!latest || card.dueDate === latest) return;
     card.dueDate = latest;
-    card.history = [{ ts: ctx.now, action: `Prazo ajustado automaticamente: ${latest.split('-').reverse().join('/')} (subatividade mais distante)`, user: ctx.who }, ...(card.history || [])].slice(0, 200);
+    card.history = [{ ts: ctx.now, action: `Prazo ajustado automaticamente: ${latest.split('-').reverse().join('/')} (subatividade aberta mais distante)`, user: ctx.who }, ...(card.history || [])].slice(0, 200);
   };
   const remap = (card, from, to) => {
     if (from === to) return;

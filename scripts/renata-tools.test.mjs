@@ -227,7 +227,8 @@ try {
   const movido = ckI.find((x) => x.id === ckItens[0].id);
   ok('checklist: mover item de posição e responsável por item (atribuir cria na lista da página, remover tira só do item)', allOk(mi, ['quadro_checklist']) && ckI.indexOf(movido) === 1 && ckI[0].id === ckItens[1].id && movido.responsibleIds.length === 1 && pgI.responsibles.some((r) => r.name === 'Nova Pessoa') && primeiroItem === movido.text);
   const cardPrazo = pgI.columns.find((c) => c.name === 'Coluna RENATA').cards[0];
-  ok('prazo da atividade acompanha a subatividade mais distante (maior prazo entre os itens, 2026-11-20, virou o prazo do cartão)', cardPrazo.dueDate === '2026-11-20' && cardPrazo.history.some((h) => /Checklist alterado/.test(h.action)));
+  // §163: o 20/11 é do "Primeiro item", já marcado (concluído) — não segura o prazo; vale o 15/11 do item aberto.
+  ok('prazo da atividade acompanha a subatividade ABERTA mais distante (o 20/11 é de item concluído; vale o 15/11 do aberto)', cardPrazo.dueDate === '2026-11-15' && cardPrazo.history.some((h) => /Checklist alterado/.test(h.action)), cardPrazo.dueDate);
   const tk = (await call(A, 'POST', '/api/xflow/tickets', { title: 'Teste RENATA ticket da ação' })).json.ticket;
   const crit2 = await run('adm', [
     { name: 'reuniao_excluir', input: { empresaId: PROJ, id: mt.id } }, { name: 'empresa_equipe_remover', input: { id: PROJ, name: 'Equipe Nova' } },

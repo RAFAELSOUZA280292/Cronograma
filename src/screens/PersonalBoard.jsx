@@ -27,6 +27,7 @@ import { loadXlsx } from '../lib/xlsxLoader.js';
 import { noteToPlain } from '../lib/richNote.js';
 import { withoutLayer } from '../lib/nav.js';
 import { sortChecklist, moveInChecklist, sameSlot } from '../personal/checklistOrder.js';
+import { openChecklistDue } from '../../shared/checklistDue.js';
 import { CARD_STATUS_META, COLUMN_COLOR_META, ConfirmDiscardModal, LoadingScreen, SidePanel, ThemeToggleBtn, ToastStack, addDays, fmtDate, fmtTs, genShareToken, parseDate, toISODate, todayISOStr, uid, useAutosaveTimestamp, useDebouncedField, useIsMobile, useToasts } from '../App.jsx';
 import { S } from '../styles/S.js';
 
@@ -337,14 +338,14 @@ function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, 
 // Prazo de um item do checklist (opcional, além do prazo do cartão). O dado é só `item.dueDate` ('AAAA-MM-DD'); item sem prazo continua igual.
 const isIsoDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date.parse(`${v}T12:00:00Z`));
 
-// Prazo da atividade = o prazo mais distante entre as subatividades que têm data. Só mexe quando
-// alguma subatividade tem data (sem datas, o prazo da atividade fica como está).
-const latestChecklistDate = (list) => (list || []).map((i) => i.dueDate).filter(isIsoDay).sort().pop() || '';
+// Prazo da atividade = o prazo mais distante entre as subatividades AINDA ABERTAS que têm data (§163: concluída não segura o prazo).
+// Sem nenhuma aberta com data, o prazo da atividade fica como está. Regra única em shared/checklistDue.js.
+const latestChecklistDate = openChecklistDue;
 function autoDue(cd, who) {
   const latest = latestChecklistDate(cd.checklist);
   if (!latest || cd.dueDate === latest) return cd;
   const ts = new Date().toISOString();
-  return { ...cd, dueDate: latest, history: [{ ts, action: `Prazo ajustado automaticamente: ${fmtDate(latest)} (subatividade mais distante)`, user: who }, ...(cd.history || [])].slice(0, 200) };
+  return { ...cd, dueDate: latest, history: [{ ts, action: `Prazo ajustado automaticamente: ${fmtDate(latest)} (subatividade aberta mais distante)`, user: who }, ...(cd.history || [])].slice(0, 200) };
 }
 const checklistTone = (item) => dueDateTone({ dueDate: item.dueDate, completed: !!item.done });
 const shortDay = (iso) => { const [, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}` : ''; };
@@ -844,7 +845,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
               {latestChecklistDate(card.checklist) && (
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>
                   {latestChecklistDate(card.checklist) === card.dueDate
-                    ? `Automático: segue a subatividade mais distante (${fmtDate(card.dueDate)}).`
+                    ? `Automático: segue a subatividade aberta mais distante (${fmtDate(card.dueDate)}).`
                     : <>As subatividades vão até {fmtDate(latestChecklistDate(card.checklist))}. {!readOnly && <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 28, padding: '0 8px', display: 'inline-flex' }} title="Define o prazo da atividade como a data da subatividade mais distante." onClick={() => { const d = latestChecklistDate(card.checklist); onUpdate({ dueDate: d }, `Prazo ajustado: ${fmtDate(d)} (subatividade mais distante)`); }}>Usar {fmtDate(latestChecklistDate(card.checklist))}</button>}</>}
                 </div>
               )}
@@ -2118,7 +2119,8 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: sortChecklist([...(cd.checklist || []), item], todayISOStr()), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
   }
   function toggleChecklistItem(colId, cardId, itemId) {
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: sortChecklist((cd.checklist || []).map((i) => (i.id === itemId ? (i.done ? { ...i, done: false, doneAt: '' } : { ...i, done: true, doneAt: new Date().toISOString() }) : i)), todayISOStr()), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+    // Concluir/reabrir também recalcula o prazo do cartão (§163).
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: sortChecklist((cd.checklist || []).map((i) => (i.id === itemId ? (i.done ? { ...i, done: false, doneAt: '' } : { ...i, done: true, doneAt: new Date().toISOString() }) : i)), todayISOStr()), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
   }
   function setChecklistItemDate(colId, cardId, itemId, date) {
     const v = isIsoDay(date) ? date : '';

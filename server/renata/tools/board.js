@@ -1,6 +1,7 @@
 // Ferramentas da Gestão de Atividades (quadro pessoal) — §101. O quadro é um documento por usuário: a RENATA só mexe no quadro de QUEM PEDIU, na mesma estrutura
 // que a tela grava (histórico do cartão com "RENATA (IA, a pedido de …)"). A tela recarrega sozinha em até ~12 s (poll de versão); edição local ainda não salva
 // vence a da RENATA (limite conhecido, documentado em §101).
+import { openChecklistDue } from '../../../shared/checklistDue.js';
 import crypto from 'node:crypto';
 import { T } from '../validate.js';
 import { pool, blankPersonalBoard } from '../../db.js';
@@ -192,8 +193,9 @@ export function registerBoard(registry) {
         } else list[idx] = { ...item, done: i.acao === 'marcar' };
         if (i.acao !== 'remover') item = list.find((x) => x.id === item.id);
       }
-      const maisLonge = list.map((x) => x.dueDate).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '')).sort().pop() || '';
-      const prazoAuto = ['adicionar', 'remover', 'definir_prazo'].includes(i.acao) && maisLonge && f.card.dueDate !== maisLonge;
+      // Prazo do cartão = subatividade ABERTA mais distante (§163); marcar/desmarcar também recalcula.
+      const maisLonge = openChecklistDue(list);
+      const prazoAuto = ['adicionar', 'remover', 'definir_prazo', 'marcar', 'desmarcar'].includes(i.acao) && maisLonge && f.card.dueDate !== maisLonge;
       f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list, ...(prazoAuto ? { dueDate: maisLonge } : {}) }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}${i.nome && /responsavel/.test(i.acao) ? ` (${i.nome})` : ''}`, now, w);
       return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done, prazo: item.dueDate || '', responsaveis: (item.responsibleIds || []).map((rid) => ((f.board.responsibles || []).find((x) => x.id === rid) || {}).name).filter(Boolean) }, mudou, anteriorPrazo, prazoDaAtividade: prazoAuto ? maisLonge : (f.card.dueDate || ''), itens: list.length, feitos: list.filter((x) => x.done).length } };
     }), summarize: (i, r) => `Checklist de “${r.cartao.title}”: ${i.acao} “${r.item.text}” (${r.feitos}/${r.itens}).` });
