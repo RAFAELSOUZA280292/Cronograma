@@ -2,10 +2,12 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-604 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+606 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (71)
+## 2026-11-02 (73)
 
+- `6dec6a1` 22:46 — Cérebro: respostas clicáveis da RENATA (§141) confirmadas pelo Rafael
+- `1e8d12b` 22:37 — Respostas da RENATA visuais e clicáveis: cada pendência vira link que abre a atividade, a reunião ou a tarefa (§141)
 - `911a49e` 22:01 — Cérebro: RENATA pelo parecer mais recente (§140) confirmada pelo Rafael
 - `11936b8` 21:56 — RENATA responde pelo parecer mais recente: sigla de tributo na busca e 29/2026 prevalece sobre 25/2026 (§140)
 - `e18db8c` 21:17 — Cérebro: aba E-mails da KUHN (§139) confirmada pelo Rafael em produção

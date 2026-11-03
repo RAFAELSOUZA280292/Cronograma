@@ -229,7 +229,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 | `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 233 arquivos
+## `src/` — 234 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -412,8 +412,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/personal/dailyExport.js` | 118 | Daily do Meu quadro (2026-10-26): filtro por prazo e exportação (Excel e PDF). Funções PURAS (sem React/DOM) para testar em Node. |
 | `src/personal/focus.js` | 140 | Foco de hoje (2026-10-29): tela para deixar aberta no iPad. Separa o que está em andamento (Agora), o que vence no dia (Próximos) |
 | `src/personal/workbenchUtils.js` | 81 | Funções puras do painel "Calendário, anotações e atalhos" (2026-10-16, visões 5 e 6). Sem React/DOM para poder testar em Node. |
-| `src/renata/RenataChat.jsx` | 375 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |
-| `src/renata/RichAnswer.jsx` | 86 | Resposta da RENATA formatada (02/11/2026, pedido do Rafael: "falta estar mais bem formatada e visual; falta poder clicar e ir até |
+| `src/renata/RenataChat.jsx` | 382 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |
+| `src/renata/RichAnswer.jsx` | 152 | Resposta da RENATA formatada (02/11/2026, pedidos do Rafael: "falta estar mais bem formatada e visual; falta poder clicar e ir até |
+| `src/renata/richAnswerParse.js` | 25 | Leitura de um item de lista da resposta da RENATA para o cartão (src/renata/RichAnswer.jsx). Puro, testado em scripts/rich-answer.test.mjs. |
 | `src/renata/screenContext.js` | 12 | Contexto da tela para a RENATA (§101): cada módulo informa onde a pessoa está (módulo, tela, registro aberto) e a RENATA recebe isso a cada pedido, para entender |
 | `src/screens/ActivityGauge.jsx` | 50 | Velocímetro da atividade (2026-10-19, pedido do Rafael): no detalhe de cada atividade, quanto das subatividades está feito, quanto foi pulado e quanto falta para |
 | `src/screens/AdminScreens.jsx` | 1564 | Telas de administração: gestão de usuários, organizações (Super Admin), escolha/cadastro de empresas e perfil. |

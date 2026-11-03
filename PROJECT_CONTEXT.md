@@ -70,6 +70,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Aba E-mails da empresa** acha as conversas sem vínculo com o CRM (mesmo CNPJ ou domínio parecido com o nome) (§139).
   - **RENATA responde pelo parecer mais recente** (sigla de tributo na busca; 29/2026 prevalece sobre 25/2026) (§140).
   - **Respostas da RENATA visuais e clicáveis**: cada pendência é um link que abre a atividade, a reunião ou a tarefa (§141).
+  - **RENATA com visual de cartões** (resumo em destaque, seções com ícone, selo de prazo) (§142).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9187,3 +9188,11 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Regra 12a da RENATA** (`agent.js`): item listado vira `[título](link)` com o campo da ferramenta (negócio: `/crm?negocio=`), blocos com `### `, um item por linha com responsável e data, abertura com resumo e no máximo uma sugestão no fim; nunca link inventado ou de fora.
 - **Tela** (`src/renata/RichAnswer.jsx`, usado no painel lateral `RenataChat` e na tela inicial `RenataHome`): títulos de bloco com marca amarela, itens em cartões, listas numeradas, **negrito**, "venceu dd/mm" / "atrasad…" / "vencid…" em vermelho e o link vira botão; clicar dispara `pt:open-link` e fecha o chat. `App.jsx` (`openPanelLinkRef`) abre a empresa e a atividade, a reunião (aba Reuniões) ou a tarefa da reunião, o negócio ou a empresa do CRM, ou o módulo; registro apagado ou sem acesso → aviso. O mesmo endereço colado no navegador abre depois de carregar as empresas (`pendingDeepOpen`).
 - Testes: `scripts/panel-links.test.mjs`; no navegador local, resposta simulada com links: atividade e reunião abriram sem recarregar, link de fora ficou texto, endereço direto abriu a atividade. Suíte 59/59; fluxos 15/15. **Confirmado pelo Rafael em produção** com a IA real ("Abriram certo", 02/11 ~22h45).
+
+## 142. RENATA com visual de cartões (2026-11-02, noite; Rafael mandou um print de referência e pediu "usar https://www.skills.sh/ para melhorar")
+
+- **Guia:** skill "image-to-code" (leonxlnx/taste-skill, no skills.sh) + "frontend-design" (Anthropic): seguir a referência à risca, sem caixa dentro de caixa nem etiqueta demais.
+- **Resposta** (`src/renata/RichAnswer.jsx`): 1º parágrafo de resposta estruturada vira **resumo em destaque** (ícone de informação, fundo dourado claro); `### ` vira seção com barra amarela, **ícone pelo assunto** (reunião/tarefa → pessoas; cronograma/atividade → calendário; negócio → maleta; e-mail; parecer) e título em caixa alta; item com link ou prazo vira **cartão** (título-link com seta, linha de detalhes com ícone de pessoa ou de área, **selo vermelho "Venceu dd/mm"** com relógio, etiqueta curta terminada em "!" como "A mais antiga!", seta à direita; o cartão inteiro abre o registro, também pelo teclado); item sem link nem prazo fica lista simples com marcador amarelo. Leitura do item em `src/renata/richAnswerParse.js` (`parseItem`).
+- **Painel** (`RenataChat.jsx`): cabeçalho com ícone dourado ("RENATA · Colaboradora digital"), "Consultei N informações" com ícone, balão do usuário em degradê dourado (texto escuro, por contraste), resposta em largura total, campo de envio numa caixa só com botão dourado.
+- **RENATA** (regra 12a): escreve no formato que vira cartão ("- [título](link) — responsável · venceu dd/mm · detalhe").
+- Testes: `scripts/rich-answer.test.mjs`; no navegador local, claro e escuro com a resposta da KUHN simulada. Suíte 60/60, fluxos 15/15. Diferença consciente do print: o texto do balão do usuário é escuro (branco sobre dourado não passa no contraste).

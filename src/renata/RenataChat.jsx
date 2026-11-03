@@ -40,9 +40,9 @@ const CSS = `
 .rnc-chips { display:flex; flex-wrap:wrap; gap:var(--sp-2); }
 .rnc-chip { padding:8px 12px; border-radius:var(--r-pill); border:1px solid var(--border-2); background:var(--bg-2); color:var(--text-2); font:inherit; font-size:var(--fs-sm); cursor:pointer; min-height:36px; text-align:left; }
 .rnc-chip:hover { background:var(--bg-3); border-color:var(--border-3); }
-.rnc-msg { max-width:94%; padding:10px 13px; border-radius:14px; font-size:13.5px; line-height:1.55; overflow-wrap:anywhere; }
-.rnc-msg.user { align-self:flex-end; background:var(--ui-accent, #F5C400); color:#111; border-bottom-right-radius:4px; white-space:pre-wrap; }
-.rnc-msg.bot { align-self:flex-start; background:var(--bg-2); border:1px solid var(--border-1); color:var(--text-1); border-bottom-left-radius:4px; }
+.rnc-msg { max-width:94%; padding:10px 13px; border-radius:16px; font-size:13.5px; line-height:1.55; overflow-wrap:anywhere; }
+.rnc-msg.user { align-self:flex-end; background:linear-gradient(135deg, #F7CE2E 0%, #E8AE0C 100%); color:#1a1405; font-weight:500; border-bottom-right-radius:6px; white-space:pre-wrap; box-shadow:0 2px 8px rgba(200,150,0,.22); }
+.rnc-msg.bot { align-self:stretch; max-width:100%; padding:14px; background:var(--bg-2); border:1px solid var(--border-1); color:var(--text-1); border-top-left-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
 .rnc-msg p { margin:0 0 8px; } .rnc-msg p:last-child { margin-bottom:0; }
 .rnc-msg ul { margin:0 0 8px; padding-left:18px; } .rnc-msg li { margin-bottom:3px; }
 .rnc-steps { align-self:flex-start; width:94%; display:flex; flex-direction:column; gap:5px; }
@@ -54,7 +54,12 @@ const CSS = `
 .rnc-bar { display:flex; gap:var(--sp-2); flex-wrap:wrap; justify-content:flex-end; }
 .rnc-time { font-size:11px; color:var(--text-5); padding:0 4px; margin-top:-4px; font-variant-numeric:tabular-nums; }
 .rnc-time.user { align-self:flex-end; } .rnc-time.bot { align-self:flex-start; }
-.rnc-reads { align-self:flex-start; font-size:var(--fs-xs); color:var(--text-5); padding:0 4px; }
+.rnc-reads { align-self:flex-start; display:flex; align-items:center; gap:var(--sp-2); font-size:12.5px; color:var(--text-4); padding:0 2px; }
+.rnc-reads .ico { width:26px; height:26px; border-radius:var(--r-md); display:grid; place-items:center; background:color-mix(in srgb, #F5C400 16%, var(--bg-1)); color:#c99a00; flex:none; }
+.rnc-head { display:flex; align-items:center; gap:var(--sp-3); min-width:0; }
+.rnc-head .ico { width:42px; height:42px; border-radius:var(--r-xl); display:grid; place-items:center; flex:none; color:#fff; background:linear-gradient(135deg, #F7CE2E 0%, #D99A00 100%); box-shadow:0 3px 10px rgba(200,150,0,.3); }
+.rnc-head h2 { margin:0; font-size:17px; font-weight:800; color:var(--text-1); letter-spacing:-.01em; }
+.rnc-head p { margin:2px 0 0; font-size:12.5px; line-height:1.4; color:var(--text-4); }
 .rnc-think { align-self:flex-start; display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-4); padding:6px 2px; }
 .rnc-spin { animation:rnc-spin 1s linear infinite; } @keyframes rnc-spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .rnc-spin { animation:none; } }
@@ -65,9 +70,11 @@ const CSS = `
 .rnc-pend dt { font-weight:700; } .rnc-pend dd { margin:0; overflow-wrap:anywhere; }
 .rnc-pend .row { display:flex; gap:var(--sp-2); flex-wrap:wrap; }
 .rnc-err { padding:10px 12px; border-radius:var(--r-lg); border:1px solid rgba(226,87,76,.4); background:var(--ui-danger-bg); font-size:var(--fs-sm); color:var(--text-1); }
-.rnc-compose { display:flex; gap:var(--sp-2); align-items:flex-end; width:100%; }
-.rnc-compose textarea { flex:1; min-width:0; resize:none; min-height:44px; max-height:140px; padding:10px 12px; border-radius:var(--r-lg); border:1px solid var(--border-3); background:var(--bg-4); color:var(--text-1); font:inherit; font-size:var(--fs-md); }
-.rnc-compose textarea:focus { outline:none; border-color:var(--ui-accent, #F5C400); }
+.rnc-compose { display:flex; gap:var(--sp-2); align-items:flex-end; width:100%; padding:6px; border:1px solid var(--border-1); border-radius:16px; background:var(--bg-1); box-shadow:0 2px 10px rgba(0,0,0,.05); }
+.rnc-compose .ui-btn.primary { min-height:44px; border-radius:var(--r-xl); background:linear-gradient(135deg, #F7CE2E 0%, #E2A80A 100%); border-color:#E2A80A; color:#1a1405; }
+.rnc-compose textarea { flex:1; min-width:0; resize:none; min-height:44px; max-height:140px; padding:10px 12px; border-radius:var(--r-xl); border:none; background:transparent; color:var(--text-1); font:inherit; font-size:var(--fs-md); }
+.rnc-compose:focus-within { border-color:var(--ui-accent, #F5C400); }
+.rnc-compose textarea:focus { outline:none; }
 .rnc-log { display:flex; flex-direction:column; gap:var(--sp-2); }
 .rnc-log-item { border:1px solid var(--border-1); background:var(--bg-2); border-radius:var(--r-lg); padding:9px 11px; font-size:12.5px; color:var(--text-3); display:flex; flex-direction:column; gap:3px; }
 .rnc-log-item b { color:var(--text-1); } .rnc-log-item .meta { font-size:11.5px; color:var(--text-5); }
@@ -121,7 +128,7 @@ function Steps({ steps, onUndo, busyUndo }) {
   if (!acts.length && !reads) return null;
   return (
     <>
-      {reads > 0 && <div className="rnc-reads">Consultei {reads} {reads === 1 ? 'informação' : 'informações'} do sistema.</div>}
+      {reads > 0 && <div className="rnc-reads"><span className="ico" aria-hidden="true"><Sparkles size={14} /></span>Consultei {reads} {reads === 1 ? 'informação' : 'informações'} do sistema.</div>}
       {acts.length > 0 && (
         <div className="rnc-steps">
           {acts.map((s, i) => {
@@ -331,7 +338,7 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
   ) : null;
 
   return (
-    <Drawer above title="RENATA" subtitle="Colaboradora digital: você pede, ela executa no sistema, com as suas permissões, e deixa tudo registrado." onClose={onClose} footer={footer} label="RENATA, colaboradora digital da PRICETAX">
+    <Drawer above title="RENATA" header={<div className="rnc-head"><span className="ico" aria-hidden="true"><Sparkles size={20} /></span><div><h2 className="ui-frame-title">RENATA · Colaboradora digital</h2><p>Executa tarefas no sistema, com as suas permissões, e deixa tudo registrado.</p></div></div>} onClose={onClose} footer={footer} label="RENATA, colaboradora digital da PRICETAX">
       <style>{CSS}{RICH_ANSWER_CSS}</style>
       <style>{CHAT_EXPORT_CSS}</style>
       <div className="rnc">
