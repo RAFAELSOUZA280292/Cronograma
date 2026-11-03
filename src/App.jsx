@@ -2383,6 +2383,7 @@ function AppScreens({ shellRef, bump }) {
     return guard('mail', 'o E-mail', (
       <MailScreen
         currentUser={currentUser} theme={theme} onGoAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
+        onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
         onOpenCrm={canOpenMode('crm', currentUser) ? (patch) => { goToWorkspace('crm'); setPendingCrmOpen(patch); } : undefined}
         onOpenProject={(pid) => { if (canOpenMode('company', currentUser) && projects.some((p) => p.id === pid)) openCompanyWorkspace([pid]); else notify('Você não tem acesso a esta empresa.', { tone: 'error' }); }}
       />

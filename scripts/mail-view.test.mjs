@@ -20,10 +20,13 @@ ok('preferências vazias, quebradas ou adulteradas voltam ao padrão', () => {
   assert.equal(v.density, 'comfortable');
   assert.equal(v.snippet, true);
   assert.equal(v.navCollapsed, false);
+  const w = sanitizeView({ side: 'contatos', sideW: 5000 });
+  assert.equal(w.side, '', 'painel lateral desconhecido fica fechado');
+  assert.equal(w.sideW, LIMITS.side[1]);
 });
 
 ok('preferências válidas sobrevivem à ida e volta em JSON', () => {
-  const v = { navW: 250, listW: 420, listH: 0.5, reading: 'bottom', density: 'compact', snippet: false, navCollapsed: true };
+  const v = { navW: 250, listW: 420, listH: 0.5, reading: 'bottom', density: 'compact', snippet: false, navCollapsed: true, side: 'agenda', sideW: 420 };
   assert.deepEqual(sanitizeView(JSON.stringify(v)), v);
 });
 

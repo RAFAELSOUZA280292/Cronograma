@@ -14,6 +14,7 @@ import { useMailPrefs, saveMailPrefs } from './mailPrefs.js';
 import InviteCard from './InviteCard.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
+import { SideRail, SideAgenda, SideTasks } from './SidePanel.jsx';
 import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
 import { LinkBadge, PartnerTag, UnknownBanner, RegisterDeal, MailLinksTab, mailIntent } from './MailLinks.jsx';
 import { MAIL_INTENT_EVENT } from './mailIntent.js';
@@ -45,7 +46,7 @@ const initials = (p) => (who(p) || '?').replace(/[^\p{L}\s]/gu, '').trim().split
 
 const CRM_WRITE = ['admin', 'diretor', 'gestor', 'vendedor', 'consultor'];
 
-export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, onOpenProject }) {
+export default function MailScreen({ currentUser, theme, onGoAgenda, onGoPersonal, onOpenCrm, onOpenProject }) {
   const isMobile = useIsMobile();
   const [status, setStatus] = useState(null);
   const [nav, setNav] = useState({ folders: [], labels: [] });
@@ -90,6 +91,13 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
 
   useEffect(() => { try { window.localStorage.setItem(viewKey(currentUser.id), JSON.stringify(view)); } catch { /* sem storage: vale só nesta visita */ } }, [view, currentUser.id]);
   const setV = (patch) => setView((v) => ({ ...v, ...patch }));
+  // Painel lateral (§150): Agenda (quem tem a Agenda) e Tarefas (quem tem a Gestão de Atividades); um por vez.
+  const canSideAgenda = !!onGoAgenda;
+  const canSideTasks = !!currentUser.personalAccess;
+  const [openInfo, setOpenInfo] = useState(null);
+  // No celular o painel cobre a tela: abre só quando a pessoa toca no ícone (não fica lembrado como no computador).
+  const [mobileSide, setMobileSide] = useState('');
+  const [inviteFocus, setInviteFocus] = useState(null);
 
   const loadStatus = useCallback(async (fresh) => {
     try { setStatus(await apiGet(`/api/mail/status${fresh ? '?fresh=1' : ''}`)); } catch (e) { setStatus({ configured: true, connected: false, mail: false, error: e.message }); }
@@ -416,6 +424,21 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
   }, [ready]);
 
   const live = (name, v) => { if (gridRef.current) gridRef.current.style.setProperty(name, v); };
+  const wantSide = isMobile ? mobileSide : view.side;
+  const sideKey = wantSide === 'agenda' && canSideAgenda ? 'agenda' : wantSide === 'tasks' && canSideTasks ? 'tasks' : '';
+  const setSide = (k) => (isMobile ? setMobileSide(k) : setV({ side: k }));
+  // A leitura do e-mail nunca fica abaixo de LIMITS.readerMin: o painel cresce só até onde sobra (lista à direita conta).
+  const sideBounds = () => {
+    const mainW = mainRef.current ? mainRef.current.clientWidth : 0;
+    const room = mainW ? mainW + view.sideW - (view.reading === 'right' ? view.listW : 0) - LIMITS.readerMin : LIMITS.side[1];
+    return { min: LIMITS.side[0], max: Math.max(LIMITS.side[0], Math.min(LIMITS.side[1], room)), scale: -1 };
+  };
+  const sideThread = openInfo && openInfo.id === openId ? openInfo : null;
+  const sideFocus = inviteFocus && inviteFocus.threadId === openId ? inviteFocus : null;
+  function onInviteFocus(f, { open } = {}) {
+    setInviteFocus({ ...f, threadId: openId });
+    if (open && canSideAgenda) setSide('agenda');
+  }
   const navBounds = () => ({ min: LIMITS.nav[0], max: LIMITS.nav[1], scale: 1 });
   const listBounds = () => ({ min: LIMITS.list[0], max: clampList(LIMITS.list[1], mainRef.current ? mainRef.current.clientWidth : 0), scale: 1 });
   const listHBounds = () => ({ min: LIMITS.listH[0], max: LIMITS.listH[1], scale: 1 / Math.max(1, mainRef.current ? mainRef.current.clientHeight : 600) });
@@ -448,6 +471,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
             {search && <button type="button" className="mail-ic" aria-label="Limpar pesquisa" title="Limpar pesquisa" onClick={() => { setQuery(''); setSearch(''); }}><X size={14} aria-hidden="true" /></button>}
           </form>
         )}
+        {ready && isMobile && (canSideAgenda || canSideTasks) && <SideRail side={sideKey} onToggle={setSide} hasAgenda={canSideAgenda} hasTasks={canSideTasks} />}
       </div>
 
       {status === null && <div className="mail-pad"><BusyBar active /></div>}
@@ -456,7 +480,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
       {ready && (
         <div
           ref={gridRef} className={`mail-grid${isMobile ? ' mobile' : ''}${!isMobile && view.navCollapsed ? ' nav-collapsed' : ''}`}
-          style={isMobile ? undefined : { '--mail-nav': `${view.navW}px`, '--mail-list': `${view.listW}px`, '--mail-list-h': `${Math.round(view.listH * 100)}%` }}
+          style={isMobile ? undefined : { '--mail-nav': `${view.navW}px`, '--mail-list': `${view.listW}px`, '--mail-list-h': `${Math.round(view.listH * 100)}%`, '--mail-side': `${view.sideW}px` }}
         >
           {!isMobile && view.navCollapsed && (
             <nav className="mail-nav mail-rail" aria-label="Pastas do e-mail">
@@ -638,6 +662,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
             <section className="mail-reader" aria-label="Leitura do e-mail">
               {openId ? (
                 <ThreadView
+                  onInfo={setOpenInfo} onInviteFocus={onInviteFocus}
                   ref={threadRef} key={`${openId}-${threadRev}`} id={openId} showBack={!paneOn} folder={folder} myEmail={status && status.email}
                   onBack={() => { const id = openId; setOpenId(null); setCursor(id); focusRow(id); }} onOpened={onOpened} onAct={(a) => act([openId], a)}
                   onCompose={(mode, messageId) => openCompose({ mode, messageId })}
@@ -659,9 +684,27 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
             </section>
           )}
           </div>
+          {(canSideAgenda || canSideTasks) && (
+            <div className={`mail-sidewrap${isMobile ? ' mobile' : ''}`}>
+              {!isMobile && sideKey && (
+                <Splitter
+                  label="Largura do painel ao lado" value={view.sideW} bounds={sideBounds} fmt={(v) => `${Math.round(v)} px`}
+                  onLive={(v) => live('--mail-side', `${v}px`)} onCommit={(v) => setV({ sideW: Math.round(v) })}
+                />
+              )}
+              {sideKey && (
+                <aside className="mail-side" aria-label={sideKey === 'agenda' ? 'Agenda' : 'Tarefas'}>
+                  {sideKey === 'agenda'
+                    ? <SideAgenda focus={sideFocus} onClose={() => setSide('')} onGoAgenda={onGoAgenda} />
+                    : <SideTasks thread={sideThread} onClose={() => setSide('')} onGoPersonal={onGoPersonal} />}
+                </aside>
+              )}
+              {!isMobile && <SideRail side={sideKey} onToggle={setSide} hasAgenda={canSideAgenda} hasTasks={canSideTasks} />}
+            </div>
+          )}
         </div>
       )}
-      {ready && isMobile && !compose && (
+      {ready && isMobile && !compose && !sideKey && (
         <button type="button" className="mail-fab" aria-label="Escrever e-mail" title="Escrever e-mail" onClick={() => openCompose({ mode: 'new' })}><PenSquare size={22} aria-hidden="true" /></button>
       )}
       {compose && (
@@ -733,7 +776,7 @@ function RowLink({ link }) {
   return null;
 }
 
-function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft, onGoAgenda, crmWrite, myName, onOpenCrm, onOpenProject, onRegister, onLinkChanged }) {
+function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft, onGoAgenda, crmWrite, myName, onOpenCrm, onOpenProject, onRegister, onLinkChanged, onInfo, onInviteFocus }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
@@ -749,6 +792,9 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
       const last = d.messages[d.messages.length - 1];
       setExpanded(new Set(d.messages.filter((m) => m.unread).map((m) => m.id).concat(last ? [last.id] : [])));
       onOpened(id, d.messages.some((m) => m.unread));
+      // Painel de Tarefas (§150): assunto e quem mandou (a última mensagem que não é minha) para "Criar tarefa deste e-mail".
+      const them = [...d.messages].reverse().find((m) => !m.sent && m.from && m.from.email);
+      if (onInfo) onInfo({ id, subject: d.subject || '', from: them ? { name: them.from.name || '', email: them.from.email } : null });
     }).catch((e) => { if (alive) setError(e.message); });
     return () => { alive = false; };
   }, [id, onOpened, attempt]);
@@ -817,7 +863,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
             </div>
             <span className="mail-date" title={fmtFullDate(m.date)}><span className="mail-date-full">{fmtFullDate(m.date)}</span><span className="mail-date-short">{fmtListDate(m.date)}</span></span>
           </header>
-          {expanded.has(m.id) && <MessageBody msg={m} onReply={() => onCompose('reply', m.id)} onGoAgenda={onGoAgenda} onAnswered={data && data.inInbox ? () => onAct('archive') : undefined} />}
+          {expanded.has(m.id) && <MessageBody msg={m} onReply={() => onCompose('reply', m.id)} onGoAgenda={onGoAgenda} onFocus={onInviteFocus} onAnswered={data && data.inInbox ? () => onAct('archive') : undefined} />}
           {expanded.has(m.id) && m.draft && (
             <div className="mail-reply-bar"><Button size="sm" variant="primary" icon={PencilLine} onClick={onOpenDraft}>Continuar rascunho</Button></div>
           )}
@@ -839,7 +885,7 @@ function replyAllCount(m, me) {
   return new Set([m.from, ...m.to, ...m.cc].map((p) => String((p && p.email) || '').toLowerCase()).filter((e) => e && e !== mine)).size;
 }
 
-function MessageBody({ msg, onReply, onGoAgenda, onAnswered }) {
+function MessageBody({ msg, onReply, onGoAgenda, onAnswered, onFocus }) {
   const { showImages } = useMailPrefs();
   const [asked, setImages] = useState(false);
   const images = showImages || asked;
@@ -853,7 +899,7 @@ function MessageBody({ msg, onReply, onGoAgenda, onAnswered }) {
           <button type="button" className="mail-link" onClick={() => setImages(true)}>Mostrar imagens</button>
         </div>
       )}
-      {msg.invite && !msg.draft && <InviteCard messageId={msg.id} onReply={onReply} onGoAgenda={onGoAgenda} onAnswered={onAnswered} />}
+      {msg.invite && !msg.draft && <InviteCard messageId={msg.id} onReply={onReply} onGoAgenda={onGoAgenda} onAnswered={onAnswered} onFocus={onFocus} />}
       <MailFrame html={html} />
       {msg.attachments.length > 0 && (
         <ul className="mail-atts" aria-label="Anexos">

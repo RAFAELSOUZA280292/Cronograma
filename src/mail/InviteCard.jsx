@@ -26,7 +26,9 @@ function headline(invite, who) {
 }
 
 // `onAnswered`: respondeu (Sim/Talvez/Não ou propôs horário) → a Caixa arquiva a conversa, como o Gmail faz (02/11/2026).
-export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered }) {
+// `onFocus(focus, { open })` (§150): o horário do convite vai para o painel lateral da Caixa (o painel aberto pula para o dia);
+// com ele, "Ver na agenda" abre o painel ao lado em vez de trocar de tela.
+export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered, onFocus }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,6 +41,9 @@ export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered 
       .catch((e) => { if (alive) setError((e && e.message) || 'Não consegui ler o convite.'); });
     return () => { alive = false; };
   }, [messageId]);
+  const focusOf = (d) => (d && d.invite && !['cancel', 'reply'].includes(d.invite.kind) && d.invite.start
+    ? { start: d.invite.start, end: d.invite.end, allDay: !!d.invite.allDay, eventId: d.event ? d.event.id : null, title: d.invite.title } : null);
+  useEffect(() => { const f = focusOf(data); if (f && onFocus) onFocus(f, { open: false }); }, [data && data.invite]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return <div className="mail-invite"><Callout tone="danger" icon={Ban}>{error}</Callout></div>;
   if (!data) return <div className="mail-invite" aria-busy="true"><Skeleton height={84} /></div>;
@@ -85,6 +90,8 @@ export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered 
     } catch (e) { notify((e && e.message) || 'Não foi possível mudar o horário.', { tone: 'error' }); } finally { setBusy(false); }
   }
   function goAgenda() {
+    const f = focusOf(data);
+    if (onFocus && f) { onFocus(f, { open: true }); return; }
     requestAgendaOpen(event.id, event.start);
     onGoAgenda();
   }
@@ -126,7 +133,7 @@ export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered 
             {!proposing && <Button size="sm" icon={CalendarClock} onClick={() => setProposing(true)} disabled={busy} disabledReason="Aguarde terminar">Propor novo horário</Button>}
           </>
         )}
-        {event && onGoAgenda && <Button size="sm" icon={CalendarDays} onClick={goAgenda}>Ver na agenda</Button>}
+        {event && (onGoAgenda || onFocus) && <Button size="sm" icon={CalendarDays} onClick={goAgenda}>{onFocus ? 'Ver na agenda ao lado' : 'Ver na agenda'}</Button>}
       </div>
       {proposing && event && (
         <ProposeTimeForm

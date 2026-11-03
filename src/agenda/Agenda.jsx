@@ -510,7 +510,9 @@ function blockStyle(ev) {
   return { background: c, border: `1px solid ${c}`, color: inkOn(c), ...(ev.status === 'cancelled' ? { opacity: 0.55, textDecoration: 'line-through' } : {}) };
 }
 
-function WeekGrid({ daysInView, events, dayStats, hideDetails, hasClash, eventLabel, eventAria, eventTip, onOpenEvent, onPickSlot }) {
+// `mark` ({ startMin, endMin, label }, só na visão de um dia): faixa destacada (o horário do convite aberto no e-mail, §150).
+// `scrollTo` (minuto do dia): onde a grade abre rolada; sem ele, nas 7h ou um pouco antes do primeiro compromisso.
+export function WeekGrid({ daysInView, events, dayStats, hideDetails, hasClash, eventLabel, eventAria, eventTip, onOpenEvent, onPickSlot, mark, scrollTo }) {
   const scrollRef = useRef(null);
   const cols = `56px repeat(${daysInView.length}, minmax(0, 1fr))`;
   const now = new Date();
@@ -525,10 +527,11 @@ function WeekGrid({ daysInView, events, dayStats, hideDetails, hasClash, eventLa
     if (!el) return;
     let earliest = 7 * 60;
     for (const list of segs.values()) for (const x of list) earliest = Math.min(earliest, x.startMin);
+    if (Number.isFinite(scrollTo)) earliest = scrollTo;
     el.scrollTop = Math.max(0, (earliest / 60 - 0.5) * PX_PER_HOUR);
-    // só ao trocar de período: a recarga de 1 em 1 minuto não mexe na rolagem
+    // só ao trocar de período (ou de horário pedido): a recarga de 1 em 1 minuto não mexe na rolagem
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstKey, daysInView.length]);
+  }, [firstKey, daysInView.length, scrollTo]);
 
   const nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * PX_PER_HOUR;
   const openProps = (ev, label) => (openable(ev, hideDetails) ? { ...activate(() => onOpenEvent(ev)), 'aria-label': label } : { onClick: () => onOpenEvent(ev) });
@@ -596,6 +599,11 @@ function WeekGrid({ daysInView, events, dayStats, hideDetails, hasClash, eventLa
                 >
                   {Array.from({ length: 24 }, (_, h) => <div key={h} className="agd-hline" style={{ top: h * PX_PER_HOUR }} />)}
                   {key === todayKey && <div className="agd-now" style={{ top: nowTop }} aria-hidden="true" />}
+                  {mark && daysInView.length === 1 && (
+                    <div className="agd-mark" style={{ top: (mark.startMin / 60) * PX_PER_HOUR, height: Math.max(18, ((mark.endMin - mark.startMin) / 60) * PX_PER_HOUR - 2) }} aria-hidden="true">
+                      <span>{mark.label}</span>
+                    </div>
+                  )}
                   {[...behind.map((x) => ({ ...x, a: x.startMin, b: Math.max(x.endMin, x.startMin + 20), col: 0, cols: 1, colSpan: 1, back: true })), ...placed].map((x) => {
                     const ev = x.ev;
                     const topPx = (x.a / 60) * PX_PER_HOUR;

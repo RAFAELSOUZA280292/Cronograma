@@ -301,3 +301,58 @@ body.mail-resizing iframe { pointer-events: none; }
 .mail-team { padding: 16px 18px; overflow: auto; height: 100%; box-sizing: border-box; }
 .mail-team-title { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--text); word-break: break-all; }
 .mail-team-hint { margin: 0 0 12px; font-size: 12.5px; color: var(--text-4); }
+
+/* Painel lateral (§150): Agenda e Tarefas ao lado do e-mail, como a barra do Google. Barra de ícones fixa à direita; o painel tem a
+   largura escolhida (--mail-side, arrastando a borda); no celular os ícones vão para o topo e o painel abre por cima da tela. */
+.mail-grid { grid-template-columns: var(--mail-nav, 220px) 0 minmax(0, 1fr) auto; }
+.mail-grid.nav-collapsed { grid-template-columns: 56px minmax(0, 1fr) auto; }
+.mail-sidewrap { display: flex; min-height: 0; }
+.mail-side { flex: 0 0 var(--mail-side, 340px); width: var(--mail-side, 340px); min-width: 0; min-height: 0; display: flex; border-left: 1px solid var(--border-1); background: var(--bg-1); }
+.mail-apps { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-left: 1px solid var(--border-1); background: var(--bg-page); }
+.mail-app { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--text-4); display: grid; place-items: center; cursor: pointer; }
+.mail-app:hover { background: var(--bg-3); color: var(--text-1); }
+.mail-app.on { background: var(--ui-info-bg); color: var(--ui-info); }
+.mail-app:focus-visible { outline: 2px solid var(--ui-info); outline-offset: 2px; }
+.mail-side-panel { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.mail-side-head { display: flex; align-items: center; gap: 4px; padding: 10px 10px 6px 14px; }
+.mail-side-title { flex: 1; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-5); }
+.mail-side-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 0 10px 8px 12px; border-bottom: 1px solid var(--border-1); }
+.mail-side-day { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
+.mail-side-date { flex: 0 0 168px; }
+.mail-side-focus { display: flex; align-items: flex-start; gap: 6px; margin: 8px 10px 0; padding: 7px 9px; border-radius: 8px; font-size: 12.5px; background: var(--ui-ok-bg); color: var(--ui-ok); }
+.mail-side-focus.clash { background: var(--ui-warn-bg, var(--bg-3)); color: var(--ui-warn, var(--text-1)); }
+.mail-side-focus svg { flex: 0 0 auto; margin-top: 2px; }
+.mail-side-pad { padding: 8px 10px 0; }
+.mail-side-grid { flex: 1 1 auto; min-height: 0; padding: 8px 8px 10px; display: flex; flex-direction: column; }
+.mail-side-grid .agd-frame { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.mail-side-grid .agd-scroll.agd-vscroll { flex: 1 1 auto; max-height: none; min-height: 0; }
+.mail-side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-bottom: 14px; }
+.mail-side-form { display: flex; flex-direction: column; gap: 8px; margin: 8px 12px 4px; padding: 10px; border: 1px solid var(--border-1); border-radius: 10px; background: var(--bg-page); }
+.mail-side-form label, .mail-side-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-4); }
+.mail-side-form input, .mail-side-form textarea, .mail-side-form select { font: inherit; font-size: 13.5px; color: var(--text-1); background: var(--bg-1); border: 1px solid var(--border-2); border-radius: 7px; padding: 7px 9px; }
+.mail-side-form textarea { resize: vertical; }
+.mail-side-row { display: flex; gap: 8px; }
+.mail-side-row > * { flex: 1 1 0; min-width: 0; }
+.mail-side-hint { font-size: 11.5px; color: var(--text-5); }
+.mail-side-sub { font-size: 12.5px; font-weight: 800; color: var(--text-2); }
+.mail-side-sub-list { margin: 14px 12px 6px; }
+.mail-side-tasks { list-style: none; margin: 0; padding: 0 8px; display: flex; flex-direction: column; gap: 4px; }
+.mail-side-task { width: 100%; text-align: left; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 1px; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text-1); cursor: pointer; font: inherit; }
+.mail-side-task:hover:not(:disabled) { background: var(--bg-3); }
+.mail-side-task:disabled { cursor: default; }
+.mail-side-due { grid-row: span 2; align-self: start; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 999px; background: var(--bg-3); color: var(--text-3); white-space: nowrap; }
+.mail-side-due.late { background: var(--ui-danger-bg, var(--bg-3)); color: var(--ui-danger); }
+.mail-side-task-title { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-side-task-where { font-size: 11.5px; color: var(--text-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Celular: ícones no topo, painel por cima de tudo */
+.mail-top .mail-apps { flex-direction: row; padding: 0; border: 0; background: transparent; gap: 2px; }
+.mail-sidewrap.mobile { display: contents; }
+.mail-sidewrap.mobile .mail-side { position: fixed; inset: 0; z-index: 60; width: auto; border: 0; }
+@media (pointer: coarse) { .mail-app { width: 44px; height: 44px; } }
+/* Tela média (iPad deitado, notebook pequeno): o painel abre POR CIMA da leitura, encostado na barra de ícones, em vez de espremer o e-mail. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .mail-grid { position: relative; }
+  .mail-sidewrap:not(.mobile) .mail-side { position: absolute; top: 0; bottom: 0; right: 53px; z-index: 30; max-width: calc(100% - 120px); box-shadow: -8px 0 24px rgba(0, 0, 0, .28); }
+  .mail-sidewrap:not(.mobile) .mail-split { display: none; }
+}

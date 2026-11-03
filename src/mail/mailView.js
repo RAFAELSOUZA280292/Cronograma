@@ -2,8 +2,11 @@
 // de atalhos da lista/leitura. Só funções puras — a tela (MailScreen.jsx) e a ajuda "?" (shell/shortcuts.js) leem daqui.
 // `scripts/mail-view.test.mjs` confere limites, saneamento e o mapa de teclas.
 
-export const VIEW_DEFAULTS = { navW: 220, listW: 360, listH: 0.45, reading: 'right', density: 'comfortable', snippet: true, navCollapsed: false };
-export const LIMITS = { nav: [160, 360], list: [260, 720], listH: [0.2, 0.8], readerMin: 360 };
+// `side`/`sideW` (§150): painel lateral à direita (Agenda ou Tarefas, como a barra do Google) e a largura dele.
+export const VIEW_DEFAULTS = { navW: 220, listW: 360, listH: 0.45, reading: 'right', density: 'comfortable', snippet: true, navCollapsed: false, side: '', sideW: 340 };
+export const LIMITS = { nav: [160, 360], list: [260, 720], listH: [0.2, 0.8], readerMin: 360, side: [280, 640] };
+export const SIDE_PANELS = ['', 'agenda', 'tasks'];
+export function clampSide(w) { return Math.round(clamp(Number(w) || VIEW_DEFAULTS.sideW, ...LIMITS.side)); }
 export const READING = ['right', 'bottom', 'off'];
 export const DENSITY = ['comfortable', 'compact'];
 
@@ -32,6 +35,8 @@ export function sanitizeView(raw) {
     density: DENSITY.includes(v.density) ? v.density : VIEW_DEFAULTS.density,
     snippet: typeof v.snippet === 'boolean' ? v.snippet : VIEW_DEFAULTS.snippet,
     navCollapsed: v.navCollapsed === true,
+    side: SIDE_PANELS.includes(v.side) ? v.side : VIEW_DEFAULTS.side,
+    sideW: clampSide(v.sideW),
   };
 }
 
