@@ -328,7 +328,7 @@ const PARECER_FACT_SQL = `(k.origin = 'internal_document' AND k.reference LIKE '
 const QUOTE_FACT_SQL = `k.id LIKE '${QUOTE_FACT_PREFIX}%'`;
 // Materiais da Biblioteca (§116) também ficam fora da janela geral: entram pela busca (`materialPromptLines`), só os trechos que a pergunta toca.
 const MATERIAL_FACT_SQL = `(k.origin = 'internal_document' AND k.reference LIKE '${MATERIAL_REF_PREFIX}%')`;
-export const MAX_PARECERES_PER_QUESTION = 3;
+export const MAX_PARECERES_PER_QUESTION = 4;
 
 const GENERIC_WORDS = new Set([
   'parecer', 'pareceres', 'pricetax', 'usar', 'quando', 'orientacao', 'orientacoes', 'cliente', 'clientes', 'temas', 'tema',
@@ -341,8 +341,18 @@ const GENERIC_WORDS = new Set([
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const stemOf = (w) => (w.length > 6 ? w.slice(0, 6) : w);
+// Siglas de tributo e de instituto têm 2–3 letras e são justamente o assunto da pergunta ("Qual a alíquota da CBS?"): sem esta
+// lista a CBS era descartada por ser curta e a pergunta ficava só com "alíquota", palavra comum a quase todos os pareceres (02/11/2026).
+const SHORT_TERMS = new Set(['cbs', 'ibs', 'pis', 'iss', 'ipi', 'iof', 'icms', 'irpj', 'csll', 'ncm', 'cst', 'rad', 'tcu', 'pec', 'zfm', 'mei', 'ecf', 'efd', 'nfe', 'cte', 'its', 'sat', 'stf', 'stj']);
 function stemSet(text) {
-  return new Set(norm(text).split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !GENERIC_WORDS.has(w)).map(stemOf));
+  return new Set(norm(text).split(/[^a-z0-9]+/).filter((w) => (w.length >= 4 || SHORT_TERMS.has(w)) && !GENERIC_WORDS.has(w)).map(stemOf));
+}
+
+// "Parecer PRICETAX Nº 29/2026" → 2026029 (sem número = 0). Entre pareceres escolhidos, o mais recente vem primeiro: é ele que vale
+// quando dois tratam do mesmo tema (o 29/2026 de 11,3% atualizou o 25/2026 de 9,30%).
+export function parecerOrder(r) {
+  const m = /n[ºo°]?\s*(\d{1,4})\s*\/\s*(\d{4})/i.exec(`${(r && r.subject) || ''} ${(r && r.content) || ''}`.slice(0, 400));
+  return m ? Number(m[2]) * 10000 + Number(m[1]) : 0;
 }
 
 // Função pura (testável sem banco): devolve até `max` fatos de parecer que a pergunta realmente toca.
@@ -371,11 +381,20 @@ export function pickRelevantPareceres(parecerRows, query, max = MAX_PARECERES_PE
     });
     return { r, hits, rare };
   });
-  return scored
-    .filter((x) => x.hits >= 2 || x.rare >= 1)
-    .sort((a, b) => b.hits - a.hits || b.rare - a.rare)
+  const strict = scored.filter((x) => x.hits >= 2 || x.rare >= 1);
+  // Pergunta curta sobre um tema que quase todo parecer cita ("alíquota da CBS"): o filtro acima descarta as palavras comuns e não
+  // sobra nada. Segundo passo: os pareceres que contêm TODAS as palavras da pergunta (com uma sigla de tributo entre elas, ou 2+
+  // palavras), mais recentes primeiro — melhor que responder sem parecer e cair em e-mail ou suposição.
+  const loose = strict.length ? strict : (() => {
+    const words = [...q];
+    if (!(words.length >= 2 || words.some((w) => SHORT_TERMS.has(w)))) return [];
+    return parecerRows.filter((r, i) => words.every((w) => sets[i].has(w))).map((r) => ({ r, hits: words.length, rare: 0 }));
+  })();
+  return loose
+    .sort((a, b) => b.hits - a.hits || b.rare - a.rare || parecerOrder(b.r) - parecerOrder(a.r))
     .slice(0, max)
-    .map((x) => x.r);
+    .map((x) => x.r)
+    .sort((a, b) => parecerOrder(b) - parecerOrder(a));
 }
 
 export async function loadRelevantFacts(pool, orgId, projectId, conversationId, limit = 30, opts = {}) {

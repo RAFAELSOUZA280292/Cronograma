@@ -2,10 +2,12 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-600 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+602 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (67)
+## 2026-11-02 (69)
 
+- `e18db8c` 21:17 — Cérebro: aba E-mails da KUHN (§139) confirmada pelo Rafael em produção
+- `5369058` 20:50 — Aba E-mails da empresa: sem vínculo com o CRM usa a empresa de mesmo CNPJ ou o domínio parecido com o nome (§139)
 - `3aea519` 20:43 — Docs: linhas das rotas do agendamento (gerado)
 - `97c104c` 20:43 — Link de agendamento: faixas de horário no lugar de expediente + almoço fixo (§139)
 - `32c3951` 20:31 — Link público de agendamento: parceiro vê só livre/ocupado e marca na agenda (§139)

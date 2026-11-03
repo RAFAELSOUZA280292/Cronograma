@@ -68,6 +68,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Lista de empresas sem as transcrições** (7,5 MB a menos; a reunião busca o texto ao abrir, gravação protegida) (§138).
   - **Link público de agendamento** (`/agendar/:código`): parceiro vê só livre/ocupado e marca na agenda da pessoa, com e-mails obrigatórios e Meet escolhido (§139).
   - **Aba E-mails da empresa** acha as conversas sem vínculo com o CRM (mesmo CNPJ ou domínio parecido com o nome) (§139).
+  - **RENATA responde pelo parecer mais recente** (sigla de tributo na busca; 29/2026 prevalece sobre 25/2026) (§140).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9171,3 +9172,10 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - Causa: `GET /api/mail-links/project/:id` só juntava os e-mails cadastrados no cronograma (Áreas/responsáveis/contatos externos) e, **se houvesse vínculo**, os da empresa do CRM. A KUHN do cronograma não tem e-mail cadastrado e não estava vinculada (a faixa "No CRM" mostrava o mesmo CNPJ, mas sem vínculo) → nenhuma chave → aba vazia.
 - Correção (`server/mailLinks.js`): sem vínculo, usa a empresa do CRM de **mesmo CNPJ** (mesma busca da faixa, `client360.js`); e, se ainda não houver chave nenhuma, os domínios do índice da equipe que **se parecem com o nome** da empresa (`domainResembles`, provedor público fora, base ≥ 3 letras).
 - **Confirmado pelo Rafael em produção** (KUHN, "Apareceram", 02/11 ~21h). Conferido antes no servidor local: empresa sem e-mail nem vínculo + conversa no índice com domínio parecido com o nome → a aba traz a conversa. (Antes da confirmação: não visto com a KUHN real (depende de as conversas estarem no índice: abrir a Caixa ou a varredura de 20 em 20 min, 90 dias na 1ª vez).
+
+## 140. RENATA responde pelo parecer mais recente (2026-11-02, noite; Rafael: "Qual a alíquota da CBS?" → ela respondeu pelo Parecer 25/2026 (9,30%) e chamou os 11,3468% de "estimativa que circulou num e-mail", com o **Parecer 29/2026** (11,3%; CBS efetiva 11,2% + IBS 0,1% em 2027–2028) já estudado)
+
+- **Causa 1 — a busca descartava a sigla:** `pickRelevantPareceres` (`server/knowledgeFacts.js`) só usava palavras de 4+ letras → "CBS" sumia; sobrava "alíquota", comum a quase todos os pareceres → nenhum parecer entrava no contexto. Agora `SHORT_TERMS` (CBS, IBS, PIS, ISS, IPI, IOF, ICMS, IRPJ, CSLL, NCM, CST, RAD, TCU…) conta; e, quando o filtro de palavra rara não acha nada, entram os pareceres que contêm **todas** as palavras da pergunta (com sigla ou 2+ palavras). Máximo por pergunta: 4.
+- **Causa 2 — nada dizia que o mais novo substitui o antigo:** os escolhidos agora saem ordenados pelo número/ano (`parecerOrder`, "Nº 29/2026" > "Nº 25/2026") e a RENATA ganhou a regra **10a** (pareceres primeiro para tema tributário, buscar com a sigla; mesmo assunto → vale o mais recente, citar número e dizer que atualizou o anterior; nunca chamar o número oficial de "estimativa"). Mesma regra no texto do assistente geral (`assistantGeneral.js`).
+- Testes: `scripts/pareceres-busca.test.mjs` (CBS acha 29 antes do 25; sigla IBS; temas raros seguem; pergunta sem tema não puxa parecer; ordem). Avaliação da RENATA 53/53. Não testado com a IA real no ar (pergunta do Rafael depois do deploy).
+- Pendente se ainda falhar: o estudo grava a data de **envio** do PDF (`source_date`), não a "posição em" do parecer; e o fato antigo (25/2026) continua ativo — a substituição é por regra da RENATA, não por status no banco.
