@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-651 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+654 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (36)
+## 2026-11-03 (39)
 
+- `1e4f4b2` 18:15 — E-mail: anexar arquivo à vista (botão com texto, clipe na barra, "Solte para anexar")
+- `794d3cb` 18:08 — Cérebro: Rafael confirmou em produção o encaminhar com as imagens embutidas (§160)
+- `1c4bc39` 17:54 — Cérebro: encaminhar com as imagens embutidas do original (§160, E-24)
 - `946718d` 17:52 — E-mail: encaminhar e responder levam as imagens embutidas do original (print colado, logo da assinatura)
 - `7639f92` 17:21 — Cérebro: Rafael confirmou em produção arrastar destinatário e @ menção (§159)
 - `23a2a0e` 17:07 — Cérebro: arrastar destinatário e @ menção (§159, E-23)
