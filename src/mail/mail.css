@@ -369,3 +369,13 @@ body.mail-resizing iframe { pointer-events: none; }
   .mail-msg-head .mail-date-short { display: inline; }
 }
 .mail-msg-who > div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Destinatários em cartões (§153), no padrão dos convidados da Agenda (.agd-guest). */
+.mc-chips { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 0; cursor: text; }
+.mc-chips input { flex: 1 0 140px; min-width: 120px; height: 30px; }
+.mc-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 2px 3px 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid var(--border-2); background: var(--bg-3); color: var(--text-2); cursor: default; }
+.mc-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-chip.bad { border-color: var(--ui-danger); background: rgba(226, 87, 76, .12); color: var(--ui-danger); }
+.mc-chip-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; padding: 0; }
+.mc-chip-x:hover, .mc-chip-x:focus-visible { background: var(--bg-4, rgba(127, 127, 127, .25)); outline: none; }
+@media (pointer: coarse) { .mc-chip-x { width: 28px; height: 28px; } }

@@ -7,6 +7,7 @@
 // Pacote de personalização (2026-11-02): cor e tamanho do texto e imagem colada, arrastada ou escolhida no corpo (vai embutida
 // por Content-ID, ver server/mailCompose.js; preparo e limites em mailImage.js).
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { splitRecipients, parseRecipient, joinRecipients, addRecipients, takeTyped } from './recipients.js';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -44,45 +45,76 @@ function readAsBase64(file) {
   });
 }
 
-// Campo de destinatários com sugestão: completa o trecho depois da última vírgula. Setas escolhem, Enter/Tab confirmam, Esc fecha.
+// Campo de destinatários em cartões (§153), como no Gmail: cada endereço vira um cartão com X; vírgula, ponto e vírgula, Enter, Tab
+// ou sair do campo fecham o cartão; colar vários de uma vez vira vários cartões; Backspace no campo vazio tira o último; clique duplo
+// no cartão volta a editá-lo; endereço inválido fica em vermelho. Sugestões (contatos e CRM) como antes: setas, Enter/Tab, Esc.
+// `value` continua o texto "a, b" que vai ao envio/rascunho (src/mail/recipients.js faz a ida e a volta).
 function RecipientInput({ id, value, onChange, inputRef, placeholder }) {
+  const [draft, setDraft] = useState('');
   const [items, setItems] = useState([]);
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
   const seq = useRef(0);
-  const token = value.split(',').pop().trim();
+  const ownRef = useRef(null);
+  const ref = inputRef || ownRef;
+  const all = splitRecipients(value);
+  const typing = draft.trim();
+  const chips = (typing && all.length && all[all.length - 1] === typing ? all.slice(0, -1) : all).map(parseRecipient);
+  const emit = (list, rest) => onChange([joinRecipients(list), rest.trim()].filter(Boolean).join(', '));
+  const commit = (more, rest = '') => { const next = addRecipients(chips, more); setDraft(rest); emit(next, rest); };
+
   useEffect(() => {
-    if (!open || token.length < 2 || /<[^>]+>$/.test(token)) { setItems([]); return undefined; }
+    if (!open || typing.length < 2 || /<[^>]+>$/.test(typing)) { setItems([]); return undefined; }
     const n = ++seq.current;
     const t = setTimeout(() => {
-      apiGet(`/api/mail/contacts?q=${encodeURIComponent(token)}`).then((d) => { if (n === seq.current) { setItems(d.contacts || []); setActive(0); } }).catch(() => {});
+      apiGet(`/api/mail/contacts?q=${encodeURIComponent(typing)}`).then((d) => { if (n === seq.current) { setItems((d.contacts || []).filter((c) => !chips.some((r) => r.email === String(c.email).toLowerCase()))); setActive(0); } }).catch(() => {});
     }, 180);
     return () => clearTimeout(t);
-  }, [token, open]);
+  }, [typing, open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function pick(c) {
-    const parts = value.split(',');
-    parts[parts.length - 1] = ` ${fmtAddr(c)}`;
-    onChange(`${parts.join(',').replace(/^\s+/, '')}, `);
+    commit([parseRecipient(c.name ? `${c.name} <${c.email}>` : c.email)]);
     setItems([]);
-    if (inputRef && inputRef.current) inputRef.current.focus();
+    if (ref.current) ref.current.focus();
   }
+  function type(text) {
+    const { done, rest } = takeTyped(text);
+    if (done.length) commit(done, rest);
+    else { setDraft(text); emit(chips, text); }
+    setOpen(true);
+  }
+  function remove(i) { const next = chips.filter((_, j) => j !== i); emit(next, draft); if (ref.current) ref.current.focus(); }
+  function edit(i) { const r = chips[i]; const next = chips.filter((_, j) => j !== i); setDraft(r.raw); emit(next, r.raw); setTimeout(() => ref.current && ref.current.focus(), 0); }
   function onKeyDown(e) {
-    if (!items.length) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => (a + 1) % items.length); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => (a - 1 + items.length) % items.length); }
-    else if ((e.key === 'Enter' && !e.ctrlKey && !e.metaKey) || e.key === 'Tab') { e.preventDefault(); pick(items[active]); }
-    else if (e.key === 'Escape') { e.stopPropagation(); setItems([]); }
+    if (items.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setActive((x) => (x + 1) % items.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); return; }
+      if ((e.key === 'Enter' && !e.ctrlKey && !e.metaKey) || e.key === 'Tab') { e.preventDefault(); pick(items[active]); return; }
+      if (e.key === 'Escape') { e.stopPropagation(); setItems([]); return; }
+    }
+    if ((e.key === 'Enter' && !e.ctrlKey && !e.metaKey) && typing) { e.preventDefault(); commit([parseRecipient(typing)]); return; }
+    if (e.key === 'Tab' && typing) { commit([parseRecipient(typing)]); return; }
+    if (e.key === 'Backspace' && !draft && chips.length) { e.preventDefault(); remove(chips.length - 1); }
   }
   const listId = `${id}-sug`;
   return (
     <div className="mc-rcpt">
-      <input
-        id={id} ref={inputRef} value={value} placeholder={placeholder} autoComplete="off" spellCheck={false}
-        role="combobox" aria-expanded={items.length > 0} aria-controls={listId} aria-autocomplete="list"
-        aria-activedescendant={items.length ? `${listId}-${active}` : undefined}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); }} onKeyDown={onKeyDown}
-        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
-      />
+      <div className="mc-chips" onMouseDown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); if (ref.current) ref.current.focus(); } }}>
+        {chips.map((r, i) => (
+          <span key={`${r.email || r.raw}-${i}`} className={`mc-chip${r.valid ? '' : ' bad'}`} title={r.valid ? (r.name ? `${r.name} <${r.email}>` : r.email) : `Endereço inválido: ${r.raw}. Clique duas vezes para corrigir.`} onDoubleClick={() => edit(i)}>
+            <span className="mc-chip-text">{r.valid ? (r.name || r.email) : r.raw}</span>
+            <button type="button" className="mc-chip-x" aria-label={`Tirar ${r.name || r.email || r.raw}`} onClick={() => remove(i)}><X size={12} aria-hidden="true" /></button>
+          </span>
+        ))}
+        <input
+          id={id} ref={ref} value={draft} placeholder={chips.length ? '' : placeholder} autoComplete="off" spellCheck={false}
+          role="combobox" aria-expanded={items.length > 0} aria-controls={listId} aria-autocomplete="list"
+          aria-activedescendant={items.length ? `${listId}-${active}` : undefined}
+          onChange={(e) => type(e.target.value)} onKeyDown={onKeyDown}
+          onFocus={() => setOpen(true)}
+          onBlur={() => { const left = draft.trim(); setTimeout(() => { setOpen(false); if (left && document.activeElement !== ref.current) commit([parseRecipient(left)]); }, 150); }}
+        />
+      </div>
       {open && items.length > 0 && (
         <ul className="mc-sug" id={listId} role="listbox" aria-label="Sugestões de destinatário">
           {items.map((c, i) => (
