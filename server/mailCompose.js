@@ -300,6 +300,16 @@ export function signatureImageError(img) {
 // Dois tipos (pedido do Rafael, 02/11/2026: "as assinaturas na PriceTax não são texto escrito, são imagens"): `image` = só o
 // banner pronto; `text` = campos (nome, cargo, contatos) com logo. Os dois aceitam a despedida livre (`closing`, ex.:
 // "Atenciosamente,") acima, com negrito opcional. Assinatura salva antes disso não tem `mode` e continua como texto.
+// Nome de quem envia (cabeçalho From). É o nome da CONTA no painel; o campo "Nome" da assinatura só serve se a conta não tiver nome e a
+// assinatura for de texto. Até 03/11/2026 vinha da assinatura primeiro, e o "Atenciosamente," guardado ali (assinatura de imagem, da
+// versão anterior da tela) saiu como nome do Rafael para a KUHN (§154).
+export function senderName(user, sig) {
+  const own = oneLine(user && user.name).slice(0, 120);
+  if (own) return own;
+  const fromSig = sig && sig.mode !== 'image' ? oneLine(sig.name).slice(0, 120) : '';
+  return /^(atenciosamente|att|abra[cç]os|cordialmente|grato|grata|obrigad[oa])\b/i.test(fromSig) ? '' : fromSig;
+}
+
 export function cleanSignature(input) {
   const s = input && typeof input === 'object' ? input : {};
   const out = { enabled: s.enabled !== false, logo: s.logo !== false, mode: s.mode === 'image' ? 'image' : 'text' };

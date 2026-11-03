@@ -6,7 +6,7 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { folderParam, unreadQuery, labelTree, labelDisplay, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
-import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
+import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, senderName, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
 import { labelColorFor } from '../shared/mailLabelColors.js';
 import { isCalendarPart, parseIcs } from './calendarInvite.js';
 import { findEventByICalUID, googleConfigured } from './googleCalendar.js';
@@ -418,7 +418,7 @@ async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
   if (imgErr) return { status: 413, message: imgErr.replace('Os anexos somam', 'Anexos e imagens somam') };
   const threaded = orig && mode !== 'forward';
   const raw = buildMime({
-    from: { name: (sig && sig.name) || req.user.name || '', email: me },
+    from: { name: senderName(req.user, signature), email: me },
     to: to.valid, cc: cc.valid, bcc: bcc.valid,
     subject: String(b.subject || '').slice(0, 500) || (orig ? replySubject(orig.subject, mode) : ''),
     html: body.html, text: body.text,

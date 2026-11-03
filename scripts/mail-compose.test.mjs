@@ -2,7 +2,7 @@
 //   node scripts/mail-compose.test.mjs
 import {
   encodeHeaderWord, formatAddress, parseRecipients, qpEncode, base64Lines, sanitizeOutgoingHtml, htmlToText, replySubject,
-  buildQuote, replyRecipients, cleanSignature, signatureHtml, signatureText, composeBody, buildMime, sizeError, attachmentsSize, LOGO_CID, MAX_ATTACH_BYTES,
+  buildQuote, replyRecipients, cleanSignature, senderName, signatureHtml, signatureText, composeBody, buildMime, sizeError, attachmentsSize, LOGO_CID, MAX_ATTACH_BYTES,
 } from '../server/mailCompose.js';
 
 let failed = 0;
@@ -144,6 +144,18 @@ ok('tamanho soma buffers e metadados', attachmentsSize([{ data: Buffer.alloc(10)
   ok('tipo imagem sem banner cai no texto (nome aparece)', /Rafael/.test(signatureHtml(cleanSignature({ mode: 'image', name: 'Rafael' }))));
   const tx = signatureHtml(cleanSignature({ mode: 'text', closing: 'Att.,', name: 'Rafael' }));
   ok('texto: despedida antes do nome', tx.indexOf('Att.,') < tx.indexOf('Rafael'));
+}
+
+// Nome do remetente (§154): o da conta, nunca a despedida guardada no campo Nome da assinatura.
+{
+  const imgSig = cleanSignature({ mode: 'image', name: 'Atenciosamente,', closing: 'Atenciosamente,' });
+  ok('remetente = nome da conta mesmo com "Atenciosamente," no campo Nome da assinatura', senderName({ name: 'Rafael Souza' }, imgSig) === 'Rafael Souza');
+  ok('remetente = nome da conta mesmo com outro nome na assinatura de texto', senderName({ name: 'Rafael Souza' }, cleanSignature({ mode: 'text', name: 'R. Souza' })) === 'Rafael Souza');
+  ok('conta sem nome: usa o Nome da assinatura de texto', senderName({ name: '' }, cleanSignature({ mode: 'text', name: 'Rafael Souza' })) === 'Rafael Souza');
+  ok('conta sem nome: despedida nunca vira nome; assinatura de imagem também não', senderName({ name: '' }, cleanSignature({ mode: 'text', name: 'Atenciosamente,' })) === '' && senderName({}, imgSig) === '');
+  ok('sem assinatura (desmarcada): nome da conta', senderName({ name: 'Rafael Souza' }, null) === 'Rafael Souza');
+  const mime = buildMime({ from: { name: senderName({ name: 'Rafael Souza' }, imgSig), email: 'rafael.souza@pricetax.com.br' }, to: [{ name: '', email: 'a@x.com' }], cc: [], bcc: [], subject: 'Oi', html: '<p>oi</p>', text: 'oi' });
+  ok('cabeçalho From sai com o nome da conta', /^From: "?Rafael Souza"? <rafael\.souza@pricetax\.com\.br>/m.test(decodeWords(mime)), mime.split('\r\n')[0]);
 }
 
 console.log(failed ? `\n${failed} verificação(ões) falharam.` : '\nTodas as verificações passaram.');
