@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-635 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+636 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (20)
+## 2026-11-03 (21)
 
+- `b4e9c83` 12:36 — Cérebro: remetente com o nome da conta (§154) e arrastar para pasta (§155); teste de fluxo do CRM quebrado desde §150
 - `c23f1fe` 12:35 — E-mail: ao arrastar para uma pasta, cartãozinho com o assunto abaixo do cursor (não a linha inteira)
 - `2439f90` 12:22 — E-mail: remetente sai com o nome da conta, não com o "Atenciosamente," da assinatura
 - `f623d25` 12:11 — Cérebro: Rafael confirmou em produção os destinatários em cartões (§153)

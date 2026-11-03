@@ -44,7 +44,7 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 - Fase 3 (§147): iPad/iPhone físicos (só emulação com toque), lápis da Caixa com Gmail real, erro real da Microsoft.
 - Tela inicial no iPad/iPhone e leitor de tela; Cofre com IA real e arquivo grande; ChatGPT/Gemini/Base44 reais na API; busca por significado (chave local da Voyage inválida).
 
-**Teste de fluxo quebrado (03/11):** "janelas do CRM (U2)" falha sempre desde os nomes novos do CRM (§150) — não acha a linha do negócio; avisada a conversa da Fase 3.
+**Teste de fluxo "janelas do CRM" (03/11, §156):** estável de novo (16/16). Não era o §150: a lista passou de 50 contas no banco de teste reaproveitado e o Voltar imediato do teste chegava antes de a janela devolver a posição no histórico. Testes manuais de navegador usam banco próprio, não o `cronograma_e2e`.
 
 **Dívidas conhecidas:** botão dentro de botão nos cartões do quadro (axe `nested-interactive`, no baseline); Esc no editor de descrição do cartão fecha só no segundo toque; imports sem uso antigos; `scripts/renata-tools.test.mjs` falha em `preferencia_guardar` (já falhava); `body` com margem padrão de 8 px; seção §116zzzzzzzz usada duas vezes (Agenda e pastas — ver E-10/E-11 no mapa).
 

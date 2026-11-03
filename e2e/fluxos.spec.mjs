@@ -143,9 +143,16 @@ test('janelas do CRM (U2): uma só janela do app, rascunho protegido, clicar for
 
   await page.goto('/crm');
   await page.getByRole('button', { name: 'Contas' }).first().click();
+  // A lista mostra 50 por página em ordem alfabética: com o banco de teste acumulando contas, a nova pode cair na página 2. Filtra como a pessoa faria.
+  const filtered = page.waitForResponse((r) => r.url().includes('/api/crm/companies?') && r.url().includes(encodeURIComponent(tag)));
+  await page.getByRole('textbox', { name: 'Buscar empresa' }).fill(`Janela E2E ${tag}`);
+  await filtered;
   const row = page.getByRole('row').filter({ hasText: `Janela E2E ${tag}` });
+  await expect(row).toBeVisible();
   await row.focus();
   await page.keyboard.press('Enter'); // abre a ficha (painel lateral)
+  await expect(page.locator('.crm-drawer')).toBeVisible();
+  const drawerLayer = await page.evaluate(() => window.history.state && window.history.state.backLayer); // posição da ficha no histórico
   await page.getByRole('button', { name: 'Editar' }).first().click();
 
   const modal = page.locator('.ui-frame-overlay.over-drawer');
@@ -175,7 +182,10 @@ test('janelas do CRM (U2): uma só janela do app, rascunho protegido, clicar for
   await page.getByRole('button', { name: 'Descartar' }).click();
   await expect(modal).toHaveCount(0);
   await expect(page.locator('.crm-drawer')).toBeVisible();
-  // Voltar do navegador fecha a ficha e continua no CRM (não cai na tela inicial com o endereço /crm)
+  // Voltar do navegador fecha a ficha e continua no CRM (não cai na tela inicial com o endereço /crm).
+  // Antes, espera a janela fechada devolver a posição dela no histórico (acontece logo depois de sumir; o Voltar imediato do teste
+  // chegava antes e consumia a posição da janela — era a intermitência de 02/11; uma pessoa não aperta Voltar tão rápido).
+  await page.waitForFunction((id) => (window.history.state && window.history.state.backLayer) === id, drawerLayer);
   await page.goBack();
   await expect(page.locator('.crm-drawer')).toHaveCount(0);
   await expect(page.getByRole('row').filter({ hasText: `Janela E2E ${tag}` })).toBeVisible();

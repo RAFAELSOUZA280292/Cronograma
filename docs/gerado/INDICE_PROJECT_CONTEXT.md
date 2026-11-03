@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 9326 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 9332 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -231,3 +231,4 @@ O `PROJECT_CONTEXT.md` tem 9326 linhas (a memória cronológica de cada decisão
 | 9309 | 153. [E-20] Para, Cc e Cco em cartões, como no Gmail (2026-11-03; Rafael, print do "Responder a todos" com o … | - Agora (src/mail/Compose.jsx RecipientInput, mesmas props de antes): cada endereço vira cartão com o nome (ou o e-mail) e X; vírgula, ponto e vírgul… |
 | 9315 | 154. [E-21] Remetente saía como "Atenciosamente," (2026-11-03; Rafael, print do e-mail enviado à KUHN: "por q… | - Causa: o cabeçalho From usava sig.name (campo Nome da assinatura) antes de req.user.name; na assinatura do Rafael (tipo Imagem, em que o campo Nome… |
 | 9321 | 155. [E-22] Arrastar e-mail para pasta: cartãozinho em vez da linha inteira (2026-11-03; Rafael: "ao arrastar… | - Causa: sem setDragImage, o navegador usava a linha inteira da lista (360×73 px) como imagem do arraste, por cima da coluna de pastas. |
+| 9327 | 156. Teste de fluxo "janelas do CRM" estável (2026-11-03; a conversa principal avisou que falhava sempre desd… | - Duas causas, nenhuma na tela: (1) dados acumulados: a lista de Contas mostra 50 por página em ordem alfabética e o banco cronogramae2e (reaproveita… |
