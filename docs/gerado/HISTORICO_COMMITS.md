@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-648 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+651 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (33)
+## 2026-11-03 (36)
 
+- `946718d` 17:52 — E-mail: encaminhar e responder levam as imagens embutidas do original (print colado, logo da assinatura)
+- `7639f92` 17:21 — Cérebro: Rafael confirmou em produção arrastar destinatário e @ menção (§159)
+- `23a2a0e` 17:07 — Cérebro: arrastar destinatário e @ menção (§159, E-23)
 - `4b88027` 17:04 — E-mail: arrastar destinatário entre Para, Cc e Cco e mencionar com @ no corpo
 - `5691eea` 16:37 — Cérebro: Rafael confirmou em produção o Dock com um app por módulo (§158)
 - `995d5ab` 16:29 — Cérebro: Dock do Mac com um app por módulo (§158)

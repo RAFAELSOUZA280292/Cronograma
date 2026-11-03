@@ -646,6 +646,7 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 | Tela do e-mail cai num teste de navegador com respostas simuladas ("Cannot read properties of undefined (reading 'filter')") | a simulação devolveu menos campos que o servidor (rascunho sem `attachments`) | §153 | Antes de culpar a tela, traduza a posição do erro pelo `.sourcemaps/*.map` (`source-map-js`) e confira o formato real da rota; simule a resposta COMPLETA |
 | E-mail chega com nome estranho no remetente ("Atenciosamente,") | o From vinha de um campo da assinatura que a tela nova (tipo Imagem) nem mostra, com valor antigo guardado | §154 | Campo escondido por um modo novo não pode alimentar outra coisa; o From é `senderName` (nome da conta) |
 | Favoritos do Safari (Preferidos) com o mesmo ícone para endereços diferentes do painel | o Safari do Mac guarda um ícone por **host** (`Touch Icons Cache`, `host` UNIQUE), não por endereço | §158 | Ícone por módulo só vale na aba, na Tela de Início e no "Adicionar ao Dock"; nos Preferidos, só com host próprio |
+| E-mail encaminhado chega sem o print colado no corpo (e com quadro vazio no lugar do logo da assinatura) | a citação descartava toda imagem `cid:` | §160 | Imagem embutida citada ganha Content-ID novo e os bytes são buscados no Gmail no envio (`quote.images`); testar com `mail-forward-images.test.mjs` |
 
 ## Não verificado / dúvidas
 - Não rodei nenhum script de `scripts/` nesta redação (somente leitura): as descrições vêm do cabeçalho de `docs/gerado/TESTES.md` e de `PROJECT_CONTEXT.md`.
