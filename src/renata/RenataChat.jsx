@@ -42,7 +42,7 @@ const CSS = `
 .rnc-chip:hover { background:var(--bg-3); border-color:var(--border-3); }
 .rnc-msg { max-width:94%; padding:10px 13px; border-radius:16px; font-size:13.5px; line-height:1.55; overflow-wrap:anywhere; }
 .rnc-msg.user { align-self:flex-end; background:linear-gradient(135deg, #F7CE2E 0%, #E8AE0C 100%); color:#1a1405; font-weight:500; border-bottom-right-radius:6px; white-space:pre-wrap; box-shadow:0 2px 8px rgba(200,150,0,.22); }
-.rnc-msg.bot { align-self:stretch; max-width:100%; padding:14px; background:var(--bg-2); border:1px solid var(--border-1); color:var(--text-1); border-top-left-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.rnc-msg.bot { align-self:stretch; max-width:100%; padding:2px 0 0; background:transparent; border:none; color:var(--text-1); }
 .rnc-msg p { margin:0 0 8px; } .rnc-msg p:last-child { margin-bottom:0; }
 .rnc-msg ul { margin:0 0 8px; padding-left:18px; } .rnc-msg li { margin-bottom:3px; }
 .rnc-steps { align-self:flex-start; width:94%; display:flex; flex-direction:column; gap:5px; }

@@ -19,9 +19,10 @@ import ChatExport, { CHAT_EXPORT_CSS, CopyMessageButton } from './ChatExport.jsx
 import ParecerStudyModal from './ParecerStudyModal.jsx';
 import { fromProjectMessages } from './chatExport.js';
 import { DialogOverlay } from '../ui/dialog.jsx';
+import RichAnswer, { AnswerBlock, AnswerItems, AnswerText, RICH_ANSWER_CSS, openPanelLink } from '../renata/RichAnswer.jsx';
 
 const ASSISTANT_CSS = `
-  .asst-fab { position:fixed; bottom:22px; right:22px; z-index:90; display:flex; align-items:center; gap:8px; background:#F5C400; color:#111; border:none; border-radius:999px; padding:12px 18px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.3); }
+  .asst-fab { position:fixed; bottom:22px; right:22px; z-index:90; display:flex; align-items:center; gap:var(--sp-2); background:#F5C400; color:#111; border:none; border-radius:var(--r-pill); padding:12px 18px; font-weight:800; font-size:var(--fs-sm); cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.3); }
   .asst-fab:hover { filter:brightness(1.05); }
   .asst-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:90; display:flex; justify-content:flex-end; }
   .asst-panel { width:460px; max-width:94vw; height:100%; background:var(--bg-1); border-left:1px solid var(--border-2); display:flex; flex-direction:column; }
@@ -34,24 +35,24 @@ const ASSISTANT_CSS = `
   .asst-head-actions button { background:transparent; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:6px; border-radius:7px; }
   .asst-head-actions button:hover:not(:disabled) { background:var(--bg-3); color:var(--text-2); }
   .asst-head-actions button:disabled { cursor:default; opacity:.5; }
-  .asst-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px; }
+  .asst-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:var(--sp-4); }
   .asst-empty { text-align:center; color:var(--text-6); font-size:12.5px; padding:24px 12px; }
   .asst-msg-row { display:flex; }
   .asst-msg-row.user { justify-content:flex-end; }
   .asst-user-msg { max-width:86%; display:flex; flex-direction:column; align-items:flex-end; }
-  .asst-msg-bubble { max-width:100%; border-radius:14px; padding:10px 13px; font-size:13px; line-height:1.55; white-space:pre-wrap; }
-  .asst-msg-bubble.user { background:linear-gradient(180deg,#FFD84D,#F5C400); color:#1a1204; border-bottom-right-radius:4px; font-weight:600; }
-  .asst-msg-bubble.plain { background:var(--bg-3); color:var(--text-2); border-bottom-left-radius:4px; }
+  .asst-msg-bubble { max-width:100%; border-radius:14px; padding:10px 13px; font-size:var(--fs-sm); line-height:1.55; white-space:pre-wrap; }
+  .asst-msg-bubble.user { background:linear-gradient(135deg,#F7CE2E 0%,#E8AE0C 100%); color:#1a1405; border-bottom-right-radius:6px; font-weight:500; }
+  .asst-msg-bubble.plain { background:transparent; color:var(--text-1); padding:2px 0 0; white-space:normal; }
   .asst-user-meta { display:flex; align-items:center; gap:3px; font-size:10px; color:var(--text-6); margin-top:4px; padding-right:2px; }
   .asst-assistant-msg { max-width:92%; }
   .asst-assistant-head { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
   .asst-assistant-icon { width:20px; height:20px; border-radius:50%; background:rgba(245,196,0,.16); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .asst-assistant-name { font-size:11.5px; font-weight:800; color:var(--text-1); }
   .asst-assistant-time { font-size:10px; color:var(--text-6); }
-  .asst-intro { font-size:13px; line-height:1.55; color:var(--text-2); margin-bottom:8px; }
-  .asst-assistant-msg.no-evidence .asst-intro { padding:10px 13px; border-radius:12px; background:var(--bg-2); border:1px dashed var(--border-3); color:var(--text-5); font-style:italic; margin-bottom:0; }
+  .asst-intro { font-size:var(--fs-sm); line-height:1.55; color:var(--text-2); margin-bottom:8px; }
+  .asst-assistant-msg.no-evidence .asst-intro { padding:10px 13px; border-radius:var(--r-xl); background:var(--bg-2); border:1px dashed var(--border-3); color:var(--text-5); font-style:italic; margin-bottom:0; }
   .asst-section { background:var(--bg-2); border-radius:11px; padding:11px 12px; margin-top:8px; border:1px solid var(--border-1); }
-  .asst-section-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .asst-section-head { display:flex; align-items:center; gap:var(--sp-2); margin-bottom:6px; }
   .asst-section-icon { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .asst-section-title { font-size:12.5px; font-weight:800; color:var(--text-1); }
   .asst-section-content { font-size:12.5px; line-height:1.6; color:var(--text-3); }
@@ -68,23 +69,23 @@ const ASSISTANT_CSS = `
   .asst-timeline-item { position:relative; }
   .asst-timeline-dot { position:absolute; left:-19px; top:3px; width:8px; height:8px; border-radius:50%; background:#F5C400; }
   .asst-timeline-date { font-size:11px; font-weight:800; color:var(--text-1); }
-  .asst-timeline-desc { font-size:12px; color:var(--text-4); line-height:1.5; }
+  .asst-timeline-desc { font-size:var(--fs-xs); color:var(--text-4); line-height:1.5; }
   .asst-sources { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
-  .asst-source-chip { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:999px; padding:3px 8px; cursor:pointer; }
+  .asst-source-chip { display:inline-flex; align-items:center; gap:var(--sp-1); font-size:10.5px; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:var(--r-pill); padding:3px 8px; cursor:pointer; }
   .asst-source-chip:hover { color:var(--text-2); border-color:var(--border-3); }
   .asst-insights { margin-top:10px; }
-  .asst-insights-label { display:flex; align-items:center; gap:4px; font-size:10px; font-weight:800; color:var(--text-6); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .asst-insights-label { display:flex; align-items:center; gap:var(--sp-1); font-size:10px; font-weight:800; color:var(--text-6); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
   .asst-insights-row { display:flex; flex-wrap:wrap; gap:6px; }
-  .asst-insight-chip { background:rgba(245,196,0,.1); border:1px solid rgba(245,196,0,.4); color:var(--text-2); border-radius:999px; padding:5px 11px; font-size:11.5px; font-weight:700; cursor:pointer; }
+  .asst-insight-chip { background:rgba(245,196,0,.1); border:1px solid rgba(245,196,0,.4); color:var(--text-2); border-radius:var(--r-pill); padding:5px 11px; font-size:11.5px; font-weight:700; cursor:pointer; }
   .asst-insight-chip:hover { background:rgba(245,196,0,.18); }
-  .asst-feedback { display:flex; gap:4px; margin-top:8px; }
+  .asst-feedback { display:flex; gap:var(--sp-1); margin-top:8px; }
   .asst-feedback button { background:transparent; border:none; cursor:pointer; color:var(--text-6); padding:2px; display:flex; }
   .asst-feedback button.active { color:var(--ui-accent-text); }
-  .asst-action-card { margin-top:8px; background:var(--bg-2); border:1px solid rgba(245,196,0,.4); border-radius:10px; padding:10px 12px; font-size:12px; }
+  .asst-action-card { margin-top:8px; background:var(--bg-2); border:1px solid rgba(245,196,0,.4); border-radius:var(--r-lg); padding:10px 12px; font-size:var(--fs-xs); }
   .asst-action-card.danger { border-color:rgba(226,87,76,.5); background:rgba(226,87,76,.06); }
   .asst-action-card-title { font-weight:800; color:var(--text-1); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
   .asst-action-card-body { color:var(--text-4); line-height:1.5; white-space:pre-wrap; }
-  .asst-action-card-buttons { display:flex; gap:8px; margin-top:8px; }
+  .asst-action-card-buttons { display:flex; gap:var(--sp-2); margin-top:8px; }
   .asst-action-btn { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; border-radius:7px; padding:6px 11px; cursor:pointer; border:1px solid; }
   .asst-action-confirm { background:#F5C400; border-color:#F5C400; color:#111; }
   .asst-action-confirm.danger { background:#c9392e; border-color:#c9392e; color:#fff; }
@@ -93,19 +94,19 @@ const ASSISTANT_CSS = `
   .asst-action-status { margin-top:8px; font-size:11.5px; font-weight:700; display:flex; align-items:center; gap:5px; }
   .asst-action-status.executed { color:var(--ui-ok); }
   .asst-action-status.rejected { color:var(--text-6); }
-  .asst-knowledge-type-chip { display:inline-flex; align-items:center; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:6px; padding:2px 7px; margin-bottom:5px; }
+  .asst-knowledge-type-chip { display:inline-flex; align-items:center; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:var(--r-sm); padding:2px 7px; margin-bottom:5px; }
   .asst-scope-label { font-size:10.5px; font-weight:700; color:var(--text-6); margin-top:8px; margin-bottom:5px; }
   .asst-scope-row { display:flex; flex-wrap:wrap; gap:6px; }
-  .asst-scope-pill { font-size:11px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--border-3); background:transparent; color:var(--text-4); cursor:pointer; }
+  .asst-scope-pill { font-size:11px; font-weight:700; padding:4px 10px; border-radius:var(--r-pill); border:1px solid var(--border-3); background:transparent; color:var(--text-4); cursor:pointer; }
   .asst-scope-pill.active { background:#F5C400; border-color:#F5C400; color:#111; }
   .asst-suggestions { display:flex; flex-wrap:wrap; gap:6px; padding:0 16px 10px; flex-shrink:0; }
-  .asst-suggestion-chip { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--text-4); background:var(--bg-3); border:1px solid var(--border-2); border-radius:999px; padding:5px 11px 5px 9px; cursor:pointer; }
+  .asst-suggestion-chip { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--text-4); background:var(--bg-3); border:1px solid var(--border-2); border-radius:var(--r-pill); padding:5px 11px 5px 9px; cursor:pointer; }
   .asst-suggestion-chip:hover { border-color:var(--border-3); color:var(--text-2); }
-  .asst-footer { display:flex; gap:8px; padding:12px 16px 16px; border-top:1px solid var(--border-1); flex-shrink:0; }
-  .asst-footer textarea { flex:1; resize:none; font-family:inherit; font-size:12.5px; padding:9px 12px; max-height:90px; border-radius:10px; }
-  .asst-send-btn { background:#F5C400; border:none; border-radius:10px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#111; flex-shrink:0; }
+  .asst-footer { display:flex; gap:var(--sp-2); padding:12px 16px 16px; border-top:1px solid var(--border-1); flex-shrink:0; }
+  .asst-footer textarea { flex:1; resize:none; font-family:inherit; font-size:12.5px; padding:9px 12px; max-height:90px; border-radius:var(--r-lg); }
+  .asst-send-btn { background:#F5C400; border:none; border-radius:var(--r-lg); width:38px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#111; flex-shrink:0; }
   .asst-send-btn:disabled { opacity:.5; cursor:default; }
-  .asst-thinking { display:flex; align-items:center; gap:6px; color:var(--text-6); font-size:12px; }
+  .asst-thinking { display:flex; align-items:center; gap:6px; color:var(--text-6); font-size:var(--fs-xs); }
   @keyframes asst-spin { to { transform:rotate(360deg); } }
   .asst-spin { animation:asst-spin 1s linear infinite; }
 
@@ -116,7 +117,7 @@ const ASSISTANT_CSS = `
     .asst-action-btn, .asst-scope-pill, .asst-suggestion-chip, .asst-insight-chip, .asst-source-chip { min-height:44px; }
     .asst-action-card-buttons { flex-wrap:wrap; }
     .asst-send-btn { width:44px; height:44px; }
-    .asst-footer textarea { font-size:16px; min-height:44px; }
+    .asst-footer textarea { font-size:var(--fs-lg); min-height:44px; }
   }
 `;
 
@@ -136,47 +137,14 @@ function fmtTime(iso) {
   try { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
 }
 
-const SECTION_META = {
-  warning: { icon: AlertTriangle, cls: 'warning' },
-  facts: { icon: FileText, cls: 'facts' },
-  impact: { icon: TrendingUp, cls: 'impact' },
-  recommendation: { icon: Lightbulb, cls: 'recommendation' },
-  timeline: { icon: History, cls: 'timeline' },
-};
-
+// Blocos da resposta com o MESMO desenho das outras conversas da RENATA (src/renata/RichAnswer.jsx, formato único desde 02/11/2026).
 function SectionCard({ section }) {
-  const meta = SECTION_META[section.type] || SECTION_META.facts;
-  const Icon = meta.icon;
+  const type = ['warning', 'facts', 'impact', 'recommendation', 'timeline'].includes(section.type) ? section.type : 'facts';
   return (
-    <div className={`asst-section asst-section-${meta.cls}`}>
-      <div className="asst-section-head">
-        <span className="asst-section-icon"><Icon size={13} /></span>
-        <span className="asst-section-title">{section.title}</span>
-      </div>
-      {section.content && <div className="asst-section-content">{renderInlineBold(section.content)}</div>}
-      {(section.items || []).length > 0 && (
-        section.type === 'timeline' ? (
-          <div className="asst-timeline">
-            {section.items.map((item, i) => {
-              const sepIdx = item.indexOf(' — ');
-              const date = sepIdx > -1 ? item.slice(0, sepIdx) : null;
-              const desc = sepIdx > -1 ? item.slice(sepIdx + 3) : item;
-              return (
-                <div className="asst-timeline-item" key={i}>
-                  <span className="asst-timeline-dot" />
-                  {date && <div className="asst-timeline-date">{date}</div>}
-                  <div className="asst-timeline-desc">{renderInlineBold(desc)}</div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <ul className="asst-section-list">
-            {section.items.map((item, i) => <li key={i}>{renderInlineBold(item)}</li>)}
-          </ul>
-        )
-      )}
-    </div>
+    <AnswerBlock type={type} title={section.title}>
+      {section.content && <AnswerText text={section.content} onLink={openPanelLink} />}
+      {(section.items || []).length > 0 && <AnswerItems items={section.items} type={type} onLink={openPanelLink} />}
+    </AnswerBlock>
   );
 }
 
@@ -394,7 +362,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
 
   return (
     <>
-      <style>{ASSISTANT_CSS}</style>
+      <style>{ASSISTANT_CSS}{RICH_ANSWER_CSS}</style>
       <style>{CHAT_EXPORT_CSS}</style>
       {!open && !defaultOpen && (
         <button type="button" className="asst-fab" onClick={() => setOpen(true)}>
@@ -452,8 +420,8 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
 
                       {m.structured ? (
                         <>
-                          <div className="asst-intro">{renderInlineBold(m.structured.introduction)}</div>
-                          {!noEvidence && (m.structured.sections || []).map((s, i) => <SectionCard key={i} section={s} />)}
+                          <div className="asst-intro rna"><div className="rna-intro"><AnswerText text={m.structured.introduction} onLink={openPanelLink} /></div>
+                          {!noEvidence && (m.structured.sections || []).map((s, i) => <SectionCard key={i} section={s} />)}</div>
                           {!noEvidence && (m.structured.insights || []).length > 0 && (
                             <div className="asst-insights">
                               <div className="asst-insights-label"><Sparkles size={10} color="#F5C400" /> Insights rápidos</div>
@@ -466,7 +434,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                           )}
                         </>
                       ) : (
-                        <div className="asst-msg-bubble plain">{renderInlineBold(m.content)}</div>
+                        <div className="asst-msg-bubble plain"><RichAnswer text={m.content} onLink={openPanelLink} /></div>
                       )}
 
                       {(m.sources || []).length > 0 && (

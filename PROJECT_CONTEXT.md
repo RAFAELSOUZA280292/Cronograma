@@ -71,6 +71,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **RENATA responde pelo parecer mais recente** (sigla de tributo na busca; 29/2026 prevalece sobre 25/2026) (§140).
   - **Respostas da RENATA visuais e clicáveis**: cada pendência é um link que abre a atividade, a reunião ou a tarefa (§141).
   - **RENATA com visual de cartões** (resumo em destaque, seções com ícone, selo de prazo) (§142).
+  - **Formato único da RENATA** nas três conversas (blocos tipados + cartões; mesma instrução de resposta) (§143).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9196,3 +9197,10 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Painel** (`RenataChat.jsx`): cabeçalho com ícone dourado ("RENATA · Colaboradora digital"), "Consultei N informações" com ícone, balão do usuário em degradê dourado (texto escuro, por contraste), resposta em largura total, campo de envio numa caixa só com botão dourado.
 - **RENATA** (regra 12a): escreve no formato que vira cartão ("- [título](link) — responsável · venceu dd/mm · detalhe").
 - Testes: `scripts/rich-answer.test.mjs`; no navegador local, claro e escuro com a resposta da KUHN simulada. Suíte 60/60, fluxos 15/15. Diferença consciente do print: o texto do balão do usuário é escuro (branco sobre dourado não passa no contraste).
+
+## 143. Formato único da RENATA nas três conversas (2026-11-02, noite; Rafael, print da RENATA do projeto: "eu amo esse tipo de formato visual… mas em cada aba a RENATA tem um formato de falar, de exibir, de responder, pq?? isso já não era para estar padronizado?")
+
+- **Causa:** três conversas feitas em épocas diferentes — RENATA do projeto (`ProjectAssistant.jsx`, resposta estruturada em JSON com seções tipadas), painel lateral (`RenataChat.jsx`, agente com ferramentas, texto) e tela inicial (`RenataHome.jsx`, texto) — cada uma com o próprio desenho e as próprias instruções.
+- **Desenho único** (`src/renata/RichAnswer.jsx`): abertura curta + **blocos tipados** herdados da RENATA do projeto — `warning` (vermelho, sempre primeiro), `facts` (azul, ícone pelo assunto), `impact` (verde), `timeline` (linha com datas), `recommendation` (roxo, sempre por último) — com os cartões clicáveis e o selo "Venceu dd/mm" (§141/§142) dentro. `AnswerBlock`, `AnswerItems`, `AnswerText` exportados; o texto do agente vira blocos pelo título (`blockType` em `richAnswerParse.js`); a RENATA do projeto desenha as suas seções com os mesmos componentes (`SectionCard`), inclusive a resposta sem estrutura. Resposta sem balão (só "RENATA · hora"), balão do usuário com o mesmo dourado nas três.
+- **Jeito de responder único:** a mesma instrução de formato nas três (`agent.js` 12a, `assistantGeneral.js`, `assistantRetrieval.js`): abertura de 1–2 frases; "### Ponto de atenção" primeiro; pendências "título — responsável · venceu dd/mm · detalhe"; "### Próximos passos" / "Recomendação" por último; pergunta simples = só a abertura.
+- Testes: `scripts/rich-answer.test.mjs` (tipo do bloco pelo título); no navegador, a mesma resposta pelo texto do agente e pelos blocos do projeto, lado a lado, nos temas claro e escuro. Suíte 60/60, fluxos 15/15.

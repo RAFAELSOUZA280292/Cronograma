@@ -21,23 +21,23 @@ const SUGGESTIONS = [
 const SWEEP_SUGGESTIONS = ['Quais clientes falaram sobre ', 'O que ficou decidido nas reuniões de '];
 
 const CSS = `
-.rnh { display: flex; flex-direction: column; gap: 12px; font-family: 'Inter', sans-serif; }
+.rnh { display: flex; flex-direction: column; gap: var(--sp-3); font-family: 'Inter', sans-serif; }
 .rnh-hello { font-size: 13.5px; line-height: 1.55; color: var(--text-3); }
-.rnh-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.rnh-chip { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.rnh-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.rnh-chip { padding: 8px 12px; border-radius: var(--r-pill); border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-2); font: inherit; font-size: var(--fs-sm); cursor: pointer; text-align: left; }
 .rnh-chip:hover { background: var(--bg-3); border-color: var(--border-3); }
 .rnh-msg { max-width: 92%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
-.rnh-msg.user { align-self: flex-end; background: var(--ui-accent, #F5C400); color: #111; border-bottom-right-radius: 4px; white-space: pre-wrap; }
-.rnh-msg.bot { align-self: flex-start; background: var(--bg-2); border: 1px solid var(--border-1); color: var(--text-1); border-bottom-left-radius: 4px; }
+.rnh-msg.user { align-self: flex-end; background: linear-gradient(135deg, #F7CE2E 0%, #E8AE0C 100%); color: #1a1405; font-weight: 500; border-bottom-right-radius: 6px; white-space: pre-wrap; }
+.rnh-msg.bot { align-self: stretch; max-width: 100%; padding: 2px 0 0; background: transparent; border: none; color: var(--text-1); }
 .rnh-msg p { margin: 0 0 8px; } .rnh-msg p:last-child { margin-bottom: 0; }
 .rnh-msg ul { margin: 0 0 8px; padding-left: 18px; } .rnh-msg li { margin-bottom: 3px; }
 .rnh-think { align-self: flex-start; font-size: 12.5px; color: var(--text-4); padding: 6px 2px; }
-.rnh-company { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--border-3); border-radius: 12px; }
-.rnh-company select { flex: 1 1 180px; min-width: 0; min-height: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: 14px; }
-.rnh-compose { display: flex; gap: 8px; align-items: flex-end; width: 100%; }
-.rnh-compose textarea { flex: 1; min-width: 0; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: 14px; }
+.rnh-company { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--border-3); border-radius: var(--r-xl); }
+.rnh-company select { flex: 1 1 180px; min-width: 0; min-height: 44px; padding: 8px 10px; border-radius: var(--r-lg); border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: var(--fs-md); }
+.rnh-compose { display: flex; gap: var(--sp-2); align-items: flex-end; width: 100%; }
+.rnh-compose textarea { flex: 1; min-width: 0; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border-radius: var(--r-lg); border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: var(--fs-md); }
 .rnh-compose textarea:focus { outline: none; border-color: var(--ui-accent, #F5C400); }
-.rnh-err { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(226,87,76,.4); background: var(--ui-danger-bg); font-size: 13px; color: var(--text-1); }
+.rnh-err { padding: 10px 12px; border-radius: var(--r-lg); border: 1px solid rgba(226,87,76,.4); background: var(--ui-danger-bg); font-size: var(--fs-sm); color: var(--text-1); }
 `;
 
 const storeKey = (userId) => `renata-home:${userId || 'anon'}`;

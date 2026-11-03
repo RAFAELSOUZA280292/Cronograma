@@ -22,3 +22,12 @@ export function parseItem(line) {
   return { title: title.replace(/\*\*/g, ''), href, meta, due, tags };
 }
 
+// Tipo do bloco (o mesmo da RENATA do projeto: warning, facts, impact, recommendation, timeline) pelo título; "facts" ganha o ícone do assunto.
+export function blockType(title) {
+  const t = String(title || '').toLowerCase();
+  if (/aten[cç][aã]o|risco|alerta|urgente|cr[ií]tic|cuidado|diverg/.test(t)) return 'warning';
+  if (/recomend|sugest|pr[oó]ximos? passos?|o que fazer|plano de a|leve preparado|como agir/.test(t)) return 'recommendation';
+  if (/impacto|efeito|consequ|resultado/.test(t)) return 'impact';
+  if (/linha do tempo|hist[oó]rico|evolu[cç][aã]o|cronologia/.test(t)) return 'timeline';
+  return 'facts';
+}

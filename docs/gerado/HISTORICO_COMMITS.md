@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-606 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+607 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (73)
+## 2026-11-02 (74)
 
+- `3d931f4` 22:51 — RENATA com visual de cartões: resumo em destaque, seções com ícone, selo de prazo e chat no novo estilo (§142)
 - `6dec6a1` 22:46 — Cérebro: respostas clicáveis da RENATA (§141) confirmadas pelo Rafael
 - `1e8d12b` 22:37 — Respostas da RENATA visuais e clicáveis: cada pendência vira link que abre a atividade, a reunião ou a tarefa (§141)
 - `911a49e` 22:01 — Cérebro: RENATA pelo parecer mais recente (§140) confirmada pelo Rafael

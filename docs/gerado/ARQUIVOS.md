@@ -19,8 +19,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/assistant.js` | 221 | Rotas do Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantActions.js` | 294 | Agente executor do Assistente do Projeto (2026-09, pedido do Rafael: |
 | `server/assistantContext.js` | 281 | Perfil do projeto (2026-09) — resumo compacto e sempre atualizado da |
-| `server/assistantGeneral.js` | 192 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
-| `server/assistantRetrieval.js` | 846 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
+| `server/assistantGeneral.js` | 193 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
+| `server/assistantRetrieval.js` | 847 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
 | `server/auth.js` | 207 |  |
 | `server/boardPlan.js` | 289 | Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada |
@@ -258,7 +258,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/app/userOrgActions.js` | 197 | Ações de administração de usuários e organizações. |
 | `src/assistant/ChatExport.jsx` | 129 | Botões de copiar e exportar a conversa da RENATA (2026-10-27) — usados pelas três telas (do projeto, geral e operacional). |
 | `src/assistant/ParecerStudyModal.jsx` | 184 |  |
-| `src/assistant/ProjectAssistant.jsx` | 560 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
+| `src/assistant/ProjectAssistant.jsx` | 528 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `src/assistant/RenataHome.jsx` | 147 | RENATA geral (2026-10-06): o painel de conversa disponível de QUALQUER tela (botão na barra do topo e item "Falar com a RENATA" na |
 | `src/assistant/chatExport.js` | 131 | Copiar e exportar conversas da RENATA (2026-10-27). Funções PURAS (sem React/DOM) para testar em Node. |
 | `src/companies/CompanyOwners.jsx` | 195 | Responsáveis por empresa (2026-10-09, pedido do Rafael): cada empresa tem um responsável PRINCIPAL e pode ter outros da equipe |
@@ -413,8 +413,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/personal/focus.js` | 140 | Foco de hoje (2026-10-29): tela para deixar aberta no iPad. Separa o que está em andamento (Agora), o que vence no dia (Próximos) |
 | `src/personal/workbenchUtils.js` | 81 | Funções puras do painel "Calendário, anotações e atalhos" (2026-10-16, visões 5 e 6). Sem React/DOM para poder testar em Node. |
 | `src/renata/RenataChat.jsx` | 382 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |
-| `src/renata/RichAnswer.jsx` | 152 | Resposta da RENATA formatada (02/11/2026, pedidos do Rafael: "falta estar mais bem formatada e visual; falta poder clicar e ir até |
-| `src/renata/richAnswerParse.js` | 25 | Leitura de um item de lista da resposta da RENATA para o cartão (src/renata/RichAnswer.jsx). Puro, testado em scripts/rich-answer.test.mjs. |
+| `src/renata/RichAnswer.jsx` | 192 | Resposta da RENATA formatada — o formato ÚNICO das três conversas (02/11/2026; Rafael: "em cada aba a RENATA tem um formato de |
+| `src/renata/richAnswerParse.js` | 34 | Leitura de um item de lista da resposta da RENATA para o cartão (src/renata/RichAnswer.jsx). Puro, testado em scripts/rich-answer.test.mjs. |
 | `src/renata/screenContext.js` | 12 | Contexto da tela para a RENATA (§101): cada módulo informa onde a pessoa está (módulo, tela, registro aberto) e a RENATA recebe isso a cada pedido, para entender |
 | `src/screens/ActivityGauge.jsx` | 50 | Velocímetro da atividade (2026-10-19, pedido do Rafael): no detalhe de cada atividade, quanto das subatividades está feito, quanto foi pulado e quanto falta para |
 | `src/screens/AdminScreens.jsx` | 1564 | Telas de administração: gestão de usuários, organizações (Super Admin), escolha/cadastro de empresas e perfil. |
