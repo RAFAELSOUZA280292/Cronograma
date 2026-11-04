@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-657 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+660 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (42)
+## 2026-11-03 (45)
 
+- `dfa1933` 20:29 — Gestão de Atividades: prazo automático do cartão segue a subatividade ABERTA mais distante
+- `9f246f8` 19:51 — Cérebro: Rafael confirmou em produção as subatividades em zebra e ordem automática (§162)
+- `50b2779` 19:50 — Cérebro: subatividades em zebra e ordem automática (§162)
 - `057f794` 19:43 — Gestão de Atividades: subatividades em zebra e em ordem automática (concluídas no topo, sem data, por data)
 - `a2edde0` 19:34 — Cérebro: Rafael confirmou em produção o anexar arquivo à vista (§161)
 - `ca217d6` 18:17 — Cérebro: anexar arquivo à vista (§161, E-25)

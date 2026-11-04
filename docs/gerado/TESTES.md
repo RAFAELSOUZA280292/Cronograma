@@ -24,6 +24,7 @@ Não há *test runner* (Jest etc.). A verificação é: `npm run build` limpo + 
 | `scripts/board-side.test.mjs` | Tarefas no painel lateral da Caixa (server/boardSide.js, §151): o que aparece em "Hoje e atrasadas" e a descrição do cartão do e-mail. |
 | `scripts/briefing-rules.test.mjs` | Briefing diário (R3): regras puras de server/briefingRules.js. Sem banco/IA/rede. Rodar: node scripts/briefing-rules.test.mjs |
 | `scripts/chat-export.test.mjs` | Teste descartável (2026-10-27): copiar/exportar conversa da RENATA — normalização das 3 telas, texto, HTML, linhas do Excel (releitura do .xlsx) e JSON. |
+| `scripts/checklist-due.test.mjs` | Prazo automático do cartão (shared/checklistDue.js, §163): só subatividades abertas contam. |
 | `scripts/checklist-order.test.mjs` | Ordem das subatividades (src/personal/checklistOrder.js, §162). |
 | `scripts/client360-alerts.test.mjs` | Cliente 360 (I1): regras puras de server/client360Alerts.js. Sem banco/IA/rede. Rodar: node scripts/client360-alerts.test.mjs |
 | `scripts/connect-crm.test.mjs` | Teste HTTP do CRM por chave de API (§99): o Claude Code opera o CRM (criar, editar, mover, excluir, registrar) com as mesmas regras da tela, tudo registrado como "Claude Code (por <dono>)". Contra servidor e Postgres LOCAIS, no sandbox (organização sandbox-edu), usuários temporários. BASE=http://localhost:3001 DATABASE_URL=postgres://localhost:5432/cronograma_dev node scripts/connect-crm.test.mjs |
