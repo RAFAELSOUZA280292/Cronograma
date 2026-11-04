@@ -2,10 +2,16 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-660 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+663 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-03 (45)
+## 2026-11-04 (1)
 
+- `3b95366` 10:50 — E-mail: janela de escrever pode ser ampliada (grande no centro) e reduzida ao canto, lembrado no aparelho
+
+## 2026-11-03 (47)
+
+- `173aa0d` 21:06 — Cérebro: Rafael confirmou em produção o prazo pela subatividade aberta (§163)
+- `2f90a99` 21:06 — Cérebro: prazo automático segue a subatividade aberta (§163)
 - `dfa1933` 20:29 — Gestão de Atividades: prazo automático do cartão segue a subatividade ABERTA mais distante
 - `9f246f8` 19:51 — Cérebro: Rafael confirmou em produção as subatividades em zebra e ordem automática (§162)
 - `50b2779` 19:50 — Cérebro: subatividades em zebra e ordem automática (§162)
