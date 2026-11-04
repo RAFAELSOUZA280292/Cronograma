@@ -142,14 +142,20 @@ const GENERIC_BASE = new Set(['grupo', 'conta', 'contabil', 'contabilidade', 'br
 const NAME_LEAD = new Set(['grupo', 'group', 'cooperativa', 'coop', 'cia', 'companhia', 'the', 'empresa', 'industria', 'ind', 'comercio', 'distribuidora']);
 // 4 = o domínio é exatamente o começo do nome, palavra a palavra ("indemil" ← INDEMIL INDUSTRIA…; "garciamonteiro" ← Garcia Monteiro - …;
 // "vellore" ← Grupo Vellore). Palavra genérica sozinha (grupo, contabil, brasil…) nunca sugere.
+// Domínio com "grupo"/"group" na frente compara também sem ele (2026-11-04, §165: grupovellore.com.br × "VELLORE S/A" ficava "fora do CRM").
+const DOMAIN_LEAD = ['grupo', 'group'];
 export function resemblanceScore(domain, c) {
-  const base = foldTxt(String(domain || '').split('.')[0]).replace(/[^a-z0-9]/g, '');
-  if (base.length < 4 || GENERIC_BASE.has(base)) return 0;
-  for (const n of [c.tradeName, c.legalName].map(foldTxt)) {
-    const words = n.split(/[^a-z0-9]+/).filter(Boolean);
-    for (let i = 0; i < words.length && (i === 0 || NAME_LEAD.has(words[i - 1])); i++) {
-      let acc = '';
-      for (let j = i; j < words.length && acc.length < base.length; j++) { acc += words[j]; if (acc === base) return 4; }
+  const full = foldTxt(String(domain || '').split('.')[0]).replace(/[^a-z0-9]/g, '');
+  const bases = [full];
+  for (const lead of DOMAIN_LEAD) if (full.startsWith(lead)) bases.push(full.slice(lead.length));
+  for (const base of bases) {
+    if (base.length < 4 || GENERIC_BASE.has(base)) continue;
+    for (const n of [c.tradeName, c.legalName].map(foldTxt)) {
+      const words = n.split(/[^a-z0-9]+/).filter(Boolean);
+      for (let i = 0; i < words.length && (i === 0 || NAME_LEAD.has(words[i - 1])); i++) {
+        let acc = '';
+        for (let j = i; j < words.length && acc.length < base.length; j++) { acc += words[j]; if (acc === base) return 4; }
+      }
     }
   }
   return 0;

@@ -154,6 +154,12 @@ ok('sócio lê a cópia de qualquer colega', canReadOwnerCopy({ id: 'u9', workRo
   ok('garciamonteiro.com.br sugere Garcia Monteiro, não Moreira & Garcia', suggestCompany('garciamonteiro.com.br', dirI)?.companyId === 'gm');
   ok('okubo.com.br sem empresa parecida: sem sugestão', suggestCompany('okubo.com.br', dirI) === null);
   ok('provedor público nunca sugere', suggestCompany('wellen@gmail.com', dirI) === null);
+  // Caso real (04/11/2026): grupovellore.com.br × "VELLORE S/A" (sem site nem contato com e-mail) aparecia como fora do CRM.
+  const vel = { id: 'vel', legalName: 'VELLORE S/A', tradeName: 'FOXLUX LTDA contabilista', relationship: 'client' };
+  const dirV = buildDirectory({ companies: [vel, indemil], deals: [{ id: 'dv', companyId: 'vel', status: 'won', stageName: 'Ganho' }] });
+  ok('grupovellore.com.br sugere VELLORE S/A', suggestCompany('grupovellore.com.br', dirV)?.companyId === 'vel');
+  ok('"grupo" sozinho ou com resto curto não sugere', suggestCompany('grupo.com.br', dirV) === null && suggestCompany('grupoabc.com.br', dirV) === null);
+  ok('group + resto genérico não sugere', suggestCompany('groupbrasil.com', dirV) === null);
   ok('Operações vê a sugestão sem id do CRM', linkForViewer(ci, { crm: false }).suggest?.name === 'INDEMIL INDUSTRIA E COMERCIO S/A' && linkForViewer(ci, { crm: false }).suggest.companyId === null);
   const dirL = buildDirectory({ companies: [indemil], deals: [{ id: 'di', companyId: 'ind', status: 'open', stageName: 'Contrato' }], marks: [{ key: 'indemil.com', kind: 'cliente', label: 'INDEMIL', companyId: 'ind' }] });
   const cl = classifyThread({ participants: [{ email: 'wellen.silva@indemil.com' }], teamReplied: true }, dirL);
