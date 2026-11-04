@@ -13,7 +13,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { TextStyle, Color, FontSize } from '@tiptap/extension-text-style';
 import ImageExt from '@tiptap/extension-image';
-import { Bold, Italic, Underline, List, ListOrdered, Link2, Quote, Paperclip, Send, Trash2, X, PenLine, ChevronDown, ChevronUp, Baseline, ImagePlus, Check } from 'lucide-react';
+import { Bold, Italic, Underline, List, ListOrdered, Link2, Quote, Paperclip, Send, Trash2, X, Maximize2, Minimize2, PenLine, ChevronDown, ChevronUp, Baseline, ImagePlus, Check } from 'lucide-react';
 import { Button, IconButton, BusyBar } from '../ui/index.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
@@ -365,6 +365,9 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   const [loadError, setLoadError] = useState('');
   const [to, setTo] = useState(addrText(init.to));
   const [cc, setCc] = useState('');
+  // Janela grande no centro (§164; Rafael: "aumentar a tela do e-mail que estamos redigindo"), como o "tela cheia" do Gmail; lembrada no aparelho.
+  const [big, setBig] = useState(() => { try { return window.localStorage.getItem('pt-mail-compose-big') === '1'; } catch { return false; } });
+  const toggleBig = () => setBig((v) => { try { window.localStorage.setItem('pt-mail-compose-big', v ? '0' : '1'); } catch { /* vale nesta visita */ } return !v; });
   const [fileDrag, setFileDrag] = useState(false); // arquivo sendo arrastado por cima da janela (aviso "Solte para anexar")
   const [bcc, setBcc] = useState('');
   const [showCc, setShowCc] = useState(false);
@@ -577,7 +580,9 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   const pickFiles = () => { if (fileRef.current) fileRef.current.click(); };
 
   return (
-    <section className={`mc${isMobile ? ' mobile' : ''}${fileDrag ? ' file-drag' : ''}`} role="dialog" aria-label={TITLES[mode]} onKeyDown={onKeyDown}
+    <>
+    {big && !isMobile && <div className="mc-backdrop" aria-hidden="true" onClick={toggleBig} />}
+    <section className={`mc${isMobile ? ' mobile' : ''}${big && !isMobile ? ' big' : ''}${fileDrag ? ' file-drag' : ''}`} role="dialog" aria-label={TITLES[mode]} onKeyDown={onKeyDown}
       onDragOver={(e) => { if (ctx && e.dataTransfer.types.includes('Files')) { e.preventDefault(); if (!fileDrag) setFileDrag(true); } }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFileDrag(false); }}
       onDrop={(e) => { setFileDrag(false); if (!ctx || e.defaultPrevented || !e.dataTransfer.files.length) return; e.preventDefault(); addFiles(e.dataTransfer.files); }}
@@ -595,7 +600,10 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
     >
       <header className="mc-head">
         <strong>{TITLES[mode]}</strong>
-        <IconButton label="Fechar" icon={X} size="sm" onClick={close} />
+        <span className="mc-head-acts">
+          {!isMobile && <IconButton label={big ? 'Reduzir para o canto' : 'Ampliar a janela'} icon={big ? Minimize2 : Maximize2} size="sm" onClick={toggleBig} />}
+          <IconButton label="Fechar" icon={X} size="sm" onClick={close} />
+        </span>
       </header>
       <BusyBar active={busy || (!ctx && !loadError)} />
       {loadError ? <div className="mc-error" role="alert">{loadError}</div> : (
@@ -687,6 +695,7 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
         <IconButton label="Descartar" icon={Trash2} onClick={discard} disabled={busy} />
       </footer>
     </section>
+    </>
   );
 });
 
