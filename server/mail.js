@@ -6,6 +6,7 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { folderParam, unreadQuery, labelTree, labelDisplay, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
+import { sendPreview } from './mailPreview.js';
 import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, senderName, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
 import { labelColorFor } from '../shared/mailLabelColors.js';
 import { isCalendarPart, parseIcs } from './calendarInvite.js';
@@ -149,6 +150,7 @@ router.get('/messages/:mid/attachments/:aid', async (req, res) => {
     const buf = Buffer.from(data.data || '', 'base64url');
     const type = String(req.query.type || '').toLowerCase();
     const name = String(req.query.name || 'anexo').replace(/[\r\n"\\/]/g, '_').slice(0, 180);
+    if (req.query.preview === '1') return sendPreview(res, buf, { filename: name, type }); // §166
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, max-age=3600');
     if (req.query.inline === '1' && INLINE_IMAGE.test(type)) {

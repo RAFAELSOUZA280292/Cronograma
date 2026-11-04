@@ -3,7 +3,7 @@
 // O corpo do e-mail é desenhado num iframe sem script (sandbox) com o HTML já higienizado no servidor; imagens externas
 // carregam direto (padrão desde 02/11/2026) ou, para quem desligar em Configurar → Imagens, só com "Mostrar imagens".
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, ChevronDown, MoreVertical } from 'lucide-react';
+import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, ChevronDown, MoreVertical } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
 import { notify, askConfirm } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
@@ -12,7 +12,8 @@ import { S } from '../styles/S.js';
 import MailFrame from './MailFrame.jsx';
 import { useMailPrefs, saveMailPrefs } from './mailPrefs.js';
 import InviteCard from './InviteCard.jsx';
-import Compose, { fmtSize } from './Compose.jsx';
+import { AttachmentList } from './Attachments.jsx';
+import Compose from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
 import { SideRail, SideAgenda, SideTasks } from './SidePanel.jsx';
 import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
@@ -933,20 +934,7 @@ function MessageBody({ msg, onReply, onGoAgenda, onAnswered, onFocus }) {
       )}
       {msg.invite && !msg.draft && <InviteCard messageId={msg.id} onReply={onReply} onGoAgenda={onGoAgenda} onAnswered={onAnswered} onFocus={onFocus} />}
       <MailFrame html={html} />
-      {msg.attachments.length > 0 && (
-        <ul className="mail-atts" aria-label="Anexos">
-          {msg.attachments.map((a) => (
-            <li key={a.id}>
-              <a className="mail-att" href={`/api/mail/messages/${msg.id}/attachments/${encodeURIComponent(a.id)}?name=${encodeURIComponent(a.filename)}`} download={a.filename}>
-                <Paperclip size={14} aria-hidden="true" />
-                <span className="mail-att-name">{a.filename}</span>
-                <span className="mail-att-size">{fmtSize(a.size)}</span>
-                <Download size={14} aria-hidden="true" />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+      <AttachmentList items={msg.attachments.map((a) => ({ key: a.id, filename: a.filename, size: a.size, mimeType: a.mimeType, url: `/api/mail/messages/${msg.id}/attachments/${encodeURIComponent(a.id)}?name=${encodeURIComponent(a.filename)}` }))} />
     </div>
   );
 }

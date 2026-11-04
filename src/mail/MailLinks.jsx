@@ -3,10 +3,11 @@
 // preenchido sem sair do e-mail e a aba "E-mails" (negócio e empresa do CRM, empresa do cronograma). Regras no servidor:
 // server/mailLinksCore.js e server/mailLinks.js. Operações (sem CRM) vê o selo sem link e, na faixa, só "Avisar o comercial".
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Building2, Briefcase, AlertTriangle, Plus, Trophy, Handshake, EyeOff, Megaphone, Mail, Paperclip, ArrowLeft, X, Link2, Download, Image as ImageIcon } from 'lucide-react';
+import { Building2, Briefcase, AlertTriangle, Plus, Trophy, Handshake, EyeOff, Megaphone, Mail, Paperclip, ArrowLeft, X, Link2, Image as ImageIcon } from 'lucide-react';
 import { Button, Callout, BusyBar, EmptyState } from '../ui/index.jsx';
 import { notify, askConfirm, askText } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
+import { AttachmentList } from './Attachments.jsx';
 import MailFrame from './MailFrame.jsx';
 import { useMailPrefs } from './mailPrefs.js';
 import { CRM_CSS } from '../crm/crmMeta.js';
@@ -176,25 +177,11 @@ function ReaderBody({ m }) {
         </div>
       )}
       <MailFrame html={html} />
-      {m.attachments.length > 0 && (
-        <ul className="ml-atts" aria-label="Anexos">
-          {m.attachments.map((a) => (
-            <li key={a.url}>
-              <a className="ml-att" href={a.url} download={a.filename}>
-                <Paperclip size={14} aria-hidden="true" />
-                <span className="ml-att-name">{a.filename}</span>
-                {a.size > 0 && <span className="ml-meta">{fmtSize(a.size)}</span>}
-                <Download size={14} aria-hidden="true" />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+      <AttachmentList items={m.attachments.map((a) => ({ key: a.url, filename: a.filename, size: a.size, mimeType: a.mimeType, url: a.url }))} />
     </div>
   );
 }
 
-const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 // Cadastro do negócio sem sair do e-mail. Ganho = cria e move para a etapa "ganho" do mesmo funil (a empresa vira Cliente no servidor).
 export function RegisterDeal({ prefill, won, currentUserId, onClose, onDone }) {

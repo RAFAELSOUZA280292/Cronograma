@@ -12,6 +12,8 @@ import { crmCan } from './crm/permissions.js';
 import { canAccessProject } from './routes.js';
 import { isQuotaError } from './gmailQuota.js';
 import { gmailFor, mailStatus, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, mapLimit, friendlyMailError } from './googleMail.js';
+import { sendPreview } from './mailPreview.js';
+import { previewKind } from '../shared/attachmentPreview.js';
 import { googleConfigured } from './googleCalendar.js';
 import { createNotification } from './notifications.js';
 import { buildDirectory, classifyThread, linkForViewer, threadFacts, keysOfCompany, groupRows, canReadContent, canReadOwnerCopy, cleanKey, MARK_KINDS, prettyKey, keyOf, lowerEmail, domainResembles } from './mailLinksCore.js';
@@ -294,7 +296,7 @@ router.get('/thread/:rowId', h(async (req, res) => {
         return {
           id: m.id, from: parseAddressList(hd.from)[0] || { name: '', email: '' }, to: parseAddressList(hd.to), cc: parseAddressList(hd.cc),
           date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null, html: body.html, remoteImages: body.remoteImages || 0,
-          attachments: parts.attachments.filter((a) => a.id && !a.inline && a.filename).slice(0, 20).map((a) => ({ filename: a.filename, size: a.size || 0, url: att(a, false) })),
+          attachments: parts.attachments.filter((a) => a.id && !a.inline && a.filename).slice(0, 20).map((a) => ({ filename: a.filename, size: a.size || 0, mimeType: a.mimeType || '', url: att(a, false) })),
         };
       });
       return res.json({ subject: threadSummary(data).subject, owner: src.name, ownerIsMe: src.user_id === req.user.id, messages });
@@ -324,6 +326,11 @@ router.get('/row/:rowId/messages/:mid/attachments/:aid', h(async (req, res) => {
     const buf = Buffer.from(data.data || '', 'base64url');
     const type = String(req.query.type || '').toLowerCase();
     const name = String(req.query.name || 'anexo').replace(/[\r\n"\\/]/g, '_').slice(0, 180);
+    // §166: pré-visualização. Abrir um arquivo (não a imagem, que já aparece na conversa) conta como leitura, igual ao download.
+    if (req.query.preview === '1') {
+      if (previewKind(name, type) !== 'image' && rows[0].user_id !== req.user.id) await pool.query('INSERT INTO mail_index_reads (org_id, reader_id, owner_id, thread_id) VALUES ($1,$2,$3,$4)', [req.user.orgId, req.user.id, rows[0].user_id, rows[0].thread_id]);
+      return sendPreview(res, buf, { filename: name, type });
+    }
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, max-age=3600');
     if (req.query.inline === '1' && INLINE_IMAGE.test(type)) {

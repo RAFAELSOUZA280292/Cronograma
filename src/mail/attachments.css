@@ -1,0 +1,56 @@
+/* Anexos com pré-visualização (§166): cartão com miniatura (imagem) ou o tipo do arquivo; clique abre a janela. */
+.mail-atts { list-style: none; display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 10px 0 0; padding: 0; }
+.mail-att-card { box-sizing: border-box; display: flex; flex-direction: column; width: 172px; border: 1px solid var(--border-2); border-radius: var(--r-md); background: var(--bg-2); overflow: hidden; }
+.mail-att-card:hover, .mail-att-card:focus-within { border-color: var(--ui-info); }
+.mail-att-open { display: flex; flex-direction: column; gap: 0; padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; text-align: left; cursor: pointer; }
+.mail-att-thumb, .mail-att-tile { display: block; width: 100%; height: 96px; object-fit: cover; background: var(--bg-3); }
+.mail-att-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-1); color: var(--text-4); font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
+.mail-att-tile.k-pdf { color: #c9392e; }
+.mail-att-tile.k-docx { color: #2b5bb8; }
+.mail-att-tile.k-sheet { color: #1f7a45; }
+.mail-att-foot { display: flex; align-items: center; gap: 6px; padding: 7px 9px 2px; min-width: 0; font-size: 12.5px; color: var(--text-1); }
+.mail-att-foot svg { flex: none; color: var(--text-5); }
+.mail-att-card .mail-att-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-weight: 600; }
+.mail-att-meta { display: flex; align-items: center; gap: 2px; padding: 0 5px 5px 9px; }
+.mail-att-card .mail-att-size { flex: 1; color: var(--text-5); white-space: nowrap; font-size: 11.5px; }
+.mail-att-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text-4); cursor: pointer; }
+.mail-att-icon:hover { background: var(--bg-3); color: var(--text-1); }
+.mail-att-open:focus-visible, .mail-att-icon:focus-visible { outline: 2px solid var(--ui-info); outline-offset: -2px; }
+
+/* Janela de pré-visualização */
+.ui-frame.modal.lg.mail-pv { width: min(1100px, 100%); height: min(900px, 100%); }
+.mail-pv .ui-frame-body { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 0; }
+.mail-pv-head { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text-4); }
+.mail-pv-head > svg { flex: none; }
+.mail-pv-titles { min-width: 0; }
+.mail-pv-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-pv-dl { margin-left: var(--sp-1); }
+.mail-pv-empty { margin: auto; padding: 40px 20px; text-align: center; color: var(--text-4); display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
+.mail-pv-img { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--sp-4); background: var(--bg-3); overflow: auto; }
+.mail-pv-img img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 2px 12px rgba(0, 0, 0, .15); background: #fff; }
+.mail-pv-pdf { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.mail-pv-pdf iframe { flex: 1; width: 100%; min-height: 420px; border: 0; background: var(--bg-3); }
+.mail-pv-newtab { display: inline-flex; align-items: center; gap: 6px; align-self: flex-end; padding: 6px 14px; font-size: 12.5px; color: var(--ui-info); }
+.mail-pv-doc { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-3); background: var(--bg-3); }
+.mail-pv-doc .mail-frame { max-width: 860px; margin: 0 auto; display: block; box-shadow: 0 2px 12px rgba(0, 0, 0, .12); }
+.mail-pv-text { flex: 1; min-height: 0; overflow: auto; }
+.mail-pv-text pre { margin: 0; padding: var(--sp-4); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-1); }
+.mail-pv-note { margin: 0; padding: var(--sp-2) var(--sp-4); font-size: 12.5px; color: var(--text-4); border-top: 1px solid var(--border-1); }
+.mail-pv-sheet { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.mail-pv-tabs { display: flex; gap: var(--sp-1); padding: var(--sp-2) var(--sp-3) 0; border-bottom: 1px solid var(--border-1); overflow-x: auto; flex: none; }
+.mail-pv-tabs button { padding: 6px 12px; border: 1px solid transparent; border-bottom: 0; border-radius: var(--r-sm) var(--r-sm) 0 0; background: none; color: var(--text-3); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.mail-pv-tabs button.on { background: var(--bg-1); border-color: var(--border-1); color: var(--text-1); font-weight: 700; }
+.mail-pv-grid { flex: 1; min-height: 0; overflow: auto; }
+.mail-pv-grid table { border-collapse: collapse; font-size: 12.5px; color: var(--text-1); }
+.mail-pv-grid th, .mail-pv-grid td { border: 1px solid var(--border-1); padding: 4px 8px; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.mail-pv-grid th { position: sticky; left: 0; background: var(--bg-2); color: var(--text-5); font-weight: 600; text-align: right; }
+.mail-pv-grid tr:first-child td { font-weight: 700; background: var(--bg-2); }
+@media (max-width: 640px) { .mail-att-card { width: calc(50% - 5px); } .ui-frame.modal.lg.mail-pv { height: 100%; } }
+.mail-pv-ics { display: flex; gap: var(--sp-3); margin: var(--sp-4); padding: var(--sp-4); border: 1px solid var(--border-2); border-radius: var(--r-md); background: var(--bg-2); color: var(--text-2); font-size: 13.5px; line-height: 1.5; }
+.mail-pv-ics > svg { flex: none; color: var(--ui-info); margin-top: 2px; }
+.mail-pv-ics-title { font-size: 15px; font-weight: 700; color: var(--text-1); }
+.mail-pv-ics-tz { color: var(--text-5); }
+.mail-pv-ics-desc { margin: var(--sp-2) 0 0; white-space: pre-wrap; color: var(--text-3); }
+.mail-pv-raw { margin: 0 var(--sp-4) var(--sp-4); }
+.mail-pv-raw summary { cursor: pointer; font-size: 12.5px; color: var(--text-4); }
+.mail-pv-raw pre { padding: var(--sp-3) 0 0; }

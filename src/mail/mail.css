@@ -81,11 +81,6 @@
   .mail-invite-actions .agd-rsvp { flex: 1 1 100%; }
   .mail-invite-people summary { min-height: 44px; display: flex; align-items: center; }
 }
-.mail-atts { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; }
-.mail-att { display: inline-flex; align-items: center; gap: 8px; max-width: 320px; padding: 8px 10px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--bg-2); color: var(--text-2); font-size: 12.5px; text-decoration: none; }
-.mail-att:hover { border-color: var(--ui-info); color: var(--text-1); }
-.mail-att-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mail-att-size { color: var(--text-5); white-space: nowrap; }
 .mail-date-short { display: none; }
 .mail-ic { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--text-5); cursor: pointer; }
 
@@ -102,10 +97,13 @@
   .mail-star { width: 44px; height: 44px; margin: -10px -10px 0 0; }
   .mail-thread { padding: 0 12px 24px; }
   .mail-thread-subject { font-size: 18px; }
-  .mail-att { max-width: 100%; }
+
   .mail-date-full, .mail-addr-email { display: none; }
   .mail-date-short { display: inline; }
 }
+/* Nome e tamanho do anexo na janela de escrever (o cartão da leitura fica em attachments.css, §166). */
+.mail-att-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-att-size { color: var(--text-5); white-space: nowrap; }
 
 /* Fase 2 (2026-11-02): escrever. Janela no canto no computador; tela cheia no celular. */
 .mail-write { width: 100%; justify-content: center; margin-bottom: 10px; }
