@@ -2,13 +2,14 @@
 // resposta de cada um, responder (Sim/Talvez/Não), propor outro horário, editar e cancelar. As peças `AttendeeList` e `ProposeTimeForm`
 // também servem o cartão de convite da Caixa de e-mail (src/mail/InviteCard.jsx).
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Ban, CalendarClock, Lock, Pencil, Repeat, Trash2, Video } from 'lucide-react';
+import { AlertTriangle, Ban, CalendarClock, Copy, Lock, Mail, Pencil, Repeat, Trash2, Video } from 'lucide-react';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, Callout, Select, Skeleton } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import RsvpButtons from './RsvpButtons.jsx';
 import { canRespond, getAgendaEvent, cancelAgendaEvent, proposeNewTime, brParts, brIso, fmtBrWhen, guestsWord } from './agendaActions.js';
 import { RSVP_META } from './dayLoad.js';
+import { attendeePeople, attendeesCopyText, attendeesMailto } from './attendeeMail.js';
 import './agenda.css';
 
 const RESP = {
@@ -24,11 +25,26 @@ export function responseCounts(attendees) {
   return [c.accepted && `${c.accepted} sim`, c.tentative && `${c.tentative} talvez`, c.declined && `${c.declined} não`, c.needsAction && `${c.needsAction} sem resposta`].filter(Boolean).join(' · ');
 }
 
-export function AttendeeList({ attendees, organizerEmail }) {
+// `subject` (nome da agenda): mostra "Copiar e-mails" e "E-mail para todos" (§167).
+export function AttendeeList({ attendees, organizerEmail, subject }) {
   if (!attendees || !attendees.length) return null;
+  const all = attendeePeople(attendees);
+  const mailto = subject !== undefined ? attendeesMailto(attendees, subject) : '';
+  async function copy() {
+    const text = attendeesCopyText(attendees);
+    try { await navigator.clipboard.writeText(text); notify(`${all.length} ${all.length === 1 ? 'e-mail copiado' : 'e-mails copiados'}. É só colar no Para.`, { tone: 'success' }); } catch { notify(`Não foi possível copiar. Copie à mão: ${text}`, { tone: 'error', ttlMs: 15000 }); }
+  }
   return (
     <div className="agd-people">
-      <div className="agd-people-head">Participantes <span>{responseCounts(attendees)}</span></div>
+      <div className="agd-people-head">
+        Participantes <span>{responseCounts(attendees)}</span>
+        {subject !== undefined && all.length > 0 && (
+          <span className="agd-people-acts">
+            <button type="button" className="agd-people-btn" onClick={copy} title="Copiar os e-mails de todos os participantes"><Copy size={13} aria-hidden="true" /> Copiar e-mails</button>
+            {mailto && <a className="agd-people-btn" href={mailto} title={`Escrever para todos os participantes com o assunto “${subject}”`}><Mail size={13} aria-hidden="true" /> E-mail para todos</a>}
+          </span>
+        )}
+      </div>
       <ul>
         {attendees.map((a) => {
           const r = RESP[a.response] || RESP.needsAction;
@@ -186,7 +202,7 @@ export default function EventDetailModal({ id, initial, conflicts, onClose, onRe
         {ev && ev.recurring && <div className="agd-muted"><Repeat size={13} aria-hidden="true" /> Reunião que se repete: o que você mudar aqui vale só para esta data.</div>}
         {base.description && <div className="agd-desc">{base.description}</div>}
         {readOnly && base.organizer && <div><b>Organizador:</b> {base.organizer}</div>}
-        {readOnly ? null : ev ? <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} /> : <Skeleton height={60} />}
+        {readOnly ? null : ev ? <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} subject={base.title || ''} /> : <Skeleton height={60} />}
         {invited && (
           <div className="agd-answer">
             <div className="agd-answer-head">Sua resposta: {RSVP_META[base.myResponse === 'needsAction' ? 'pending' : base.myResponse] ? RSVP_META[base.myResponse === 'needsAction' ? 'pending' : base.myResponse].label : 'Sem resposta'}</div>

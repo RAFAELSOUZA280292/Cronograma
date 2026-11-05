@@ -68,6 +68,11 @@
 .agd-desc { white-space: pre-wrap; color: var(--text-3); overflow-wrap: anywhere; }
 .agd-people-head { font-size: 12.5px; font-weight: 700; color: var(--text-3); margin-bottom: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
 .agd-people-head span { font-weight: 500; color: var(--text-5); }
+/* §167: copiar os e-mails e escrever para todos */
+.agd-people-head .agd-people-acts { margin-left: auto; display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.agd-people-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid var(--border-2); border-radius: var(--r-pill); background: var(--bg-2); color: var(--text-2); font: inherit; font-size: var(--fs-xs); font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.agd-people-btn:hover { border-color: var(--ui-info); color: var(--text-1); }
+.agd-people-btn:focus-visible { outline: 2px solid var(--ui-info); outline-offset: 1px; }
 .agd-people ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .agd-people li { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border-1); }
 .agd-person { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }

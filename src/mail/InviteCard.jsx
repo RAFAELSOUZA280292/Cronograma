@@ -119,7 +119,7 @@ export default function InviteCard({ messageId, onReply, onGoAgenda, onAnswered,
       )}
       <details className="mail-invite-people">
         <summary>{people.length ? `Participantes (${people.length})` : 'Participantes'}</summary>
-        <AttendeeList attendees={people} organizerEmail={invite.organizer && invite.organizer.email} />
+        <AttendeeList attendees={people} organizerEmail={invite.organizer && invite.organizer.email} subject={invite.title || ''} />
       </details>
 
       <div className="mail-invite-actions">
