@@ -8,8 +8,7 @@ import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { apiDelete, apiPatch, apiPost } from '../lib/api.js';
 import { useDirtyForm } from '../App.jsx';
 import { fmtBrWhen, brIso } from './agendaActions.js';
-import { AttendeeList, meetLabel } from './EventDetail.jsx';
-import { tidyDescription } from './describe.js';
+import { AttendeeList, meetLabel, DescriptionText } from './EventDetail.jsx';
 import './agenda.css';
 
 const label = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)' };
@@ -134,7 +133,10 @@ export function TeamEventDetail({ ev, onClose, onSchedule }) {
   return (
     <Modal
       title={ev.title} subtitle={fmtBrWhen(ev.start, ev.end, ev.allDay)} onClose={onClose}
-      footer={<><Button onClick={() => onSchedule(ev.owner)}>Marcar reunião com {ev.accountLabel || ev.owner}</Button><Button onClick={onClose}>Fechar</Button></>}
+      footer={<>
+        {/* §168b: entrar na reunião sem rolar de volta ao topo */}
+        {ev.meetLink && <a className="ui-btn primary agd-foot-meet" href={ev.meetLink} target="_blank" rel="noopener noreferrer"><Video size={15} aria-hidden="true" /> {meetLabel(ev.meetLink).replace('Microsoft Teams', 'Teams').replace('Google Meet', 'Meet')}</a>}
+        <Button onClick={() => onSchedule(ev.owner)} title={`Marcar reunião com ${ev.accountLabel || ev.owner}`}>Marcar reunião com {String(ev.accountLabel || ev.owner).split(/[\s@]/)[0]}</Button><Button onClick={onClose}>Fechar</Button></>}
     >
       <div className="agd-detail">
         <div><b>Agenda de:</b> {ev.accountLabel || ev.owner}</div>
@@ -148,7 +150,7 @@ export function TeamEventDetail({ ev, onClose, onSchedule }) {
         {ev.busyOnly && <div className="agd-muted">Esta pessoa só compartilha livre/ocupado com você.</div>}
         {/* §168: participantes como no Google, com Copiar e-mails / E-mail para todos (§167). */}
         <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} subject={ev.title || ''} />
-        {ev.description && <div className="agd-desc">{tidyDescription(ev.description)}</div>}
+        {ev.description && <DescriptionText text={ev.description} />}
       </div>
     </Modal>
   );

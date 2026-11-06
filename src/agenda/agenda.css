@@ -386,3 +386,7 @@
 :root .agd-rsvp-btn.maybe.on { color: #1a1a1a; }
 /* Escolhido: o emoji ganha uma bolinha branca (❌ sobre vermelho e 🟡 sobre amarelo sumiam). */
 .agd-rsvp-btn.on .agd-rsvp-emoji { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #fff; font-size: 11px; }
+
+/* §168b: links da descrição e entrar na reunião pelo rodapé */
+.agd-desc a { color: var(--ui-info); text-decoration: underline; overflow-wrap: anywhere; }
+.agd-foot-meet { margin-right: auto; }

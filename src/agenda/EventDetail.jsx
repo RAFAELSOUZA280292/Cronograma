@@ -10,7 +10,7 @@ import RsvpButtons from './RsvpButtons.jsx';
 import { canRespond, getAgendaEvent, cancelAgendaEvent, proposeNewTime, brParts, brIso, fmtBrWhen, guestsWord } from './agendaActions.js';
 import { RSVP_META } from './dayLoad.js';
 import { attendeePeople, attendeesCopyText, attendeesMailto } from './attendeeMail.js';
-import { tidyDescription } from './describe.js';
+import { tidyDescription, splitLinks } from './describe.js';
 import './agenda.css';
 
 const RESP = {
@@ -105,6 +105,19 @@ export function ProposeTimeForm({ start, end, onSubmit, onCancel, busy, submitLa
   );
 }
 
+// Descrição limpa com os links clicáveis (§168b): o link da reunião abre direto, sem copiar e colar.
+export function DescriptionText({ text }) {
+  const parts = splitLinks(tidyDescription(text));
+  if (!parts.length) return null;
+  return (
+    <div className="agd-desc">
+      {parts.map((p, i) => (p.href
+        ? <a key={i} href={p.href} {...(p.mail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}>{p.text}</a>
+        : <React.Fragment key={i}>{p.text}</React.Fragment>))}
+    </div>
+  );
+}
+
 export const meetLabel = (url) => (/meet\.google\.com/i.test(url) ? 'Entrar no Google Meet' : /teams\.(microsoft|live)\.com/i.test(url) ? 'Entrar no Microsoft Teams' : 'Entrar na reunião');
 
 export default function EventDetailModal({ id, initial, conflicts, onClose, onRespond, respondBusy, onEdit, onChanged }) {
@@ -169,6 +182,8 @@ export default function EventDetailModal({ id, initial, conflicts, onClose, onRe
       title={base.title} subtitle={fmtBrWhen(base.start, base.end, base.allDay)} onClose={onClose} busy={busy}
       footer={(
         <>
+          {/* §168b: entrar na reunião sem rolar de volta ao topo */}
+          {ev && ev.meetLink && ev.status !== 'cancelled' && <a className="ui-btn primary agd-foot-meet" href={ev.meetLink} target="_blank" rel="noopener noreferrer"><Video size={15} aria-hidden="true" /> {meetLabel(ev.meetLink).replace('Microsoft Teams', 'Teams').replace('Google Meet', 'Meet')}</a>}
           {ev && ev.isOrganizer && ev.status !== 'cancelled' && <Button icon={Trash2} onClick={cancelIt} disabled={busy} disabledReason="Aguarde terminar">Cancelar reunião</Button>}
           {/* Dia inteiro não abre o formulário (ele só sabe horário: salvar dava erro de duração ou virava evento no dia anterior). */}
           {ev && ev.canEdit && !base.allDay && ev.status !== 'cancelled' && <Button icon={Pencil} onClick={() => onEdit(ev)} disabled={busy} disabledReason="Aguarde terminar">Editar</Button>}
@@ -201,7 +216,7 @@ export default function EventDetailModal({ id, initial, conflicts, onClose, onRe
         {ev && !ev.isOrganizer && ev.organizerName && <div><b>Organizador:</b> {ev.organizerName}</div>}
         {ev && ev.isOrganizer && <div className="agd-muted">Você é o organizador.</div>}
         {ev && ev.recurring && <div className="agd-muted"><Repeat size={13} aria-hidden="true" /> Reunião que se repete: o que você mudar aqui vale só para esta data.</div>}
-        {base.description && <div className="agd-desc">{tidyDescription(base.description)}</div>}
+        {base.description && <DescriptionText text={base.description} />}
         {readOnly && base.organizer && <div><b>Organizador:</b> {base.organizer}</div>}
         {readOnly ? null : ev ? <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} subject={base.title || ''} /> : <Skeleton height={60} />}
         {invited && (

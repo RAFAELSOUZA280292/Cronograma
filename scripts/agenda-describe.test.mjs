@@ -1,5 +1,5 @@
 // Descrição do compromisso e link da reunião (§168). node scripts/agenda-describe.test.mjs
-import { tidyDescription } from '../src/agenda/describe.js';
+import { tidyDescription, splitLinks } from '../src/agenda/describe.js';
 import { meetingLinkFrom, mapAttendees } from '../server/googleCalendar.js';
 import { mapTeamEvent } from '../server/agendaTeam.js';
 
@@ -30,6 +30,13 @@ ok('organizador e link do Teams', te.organizerEmail === 'rogeria.zapparoli@tecum
 const priv = mapTeamEvent({ email: 'f@x.com', color: '#000000' }, { ...g, visibility: 'private' }, 'r@x.com');
 ok('compromisso particular continua "Ocupado", sem participantes nem link', priv.title === 'Ocupado' && !priv.attendees.length && !priv.meetLink && !priv.organizerEmail);
 ok('na sua própria agenda o "self" do Google vale', mapAttendees(g).find((a) => a.self).email === 'felipedalsanto@pricetax.com.br');
+
+const parts = splitLinks('Ingressar: https://teams.microsoft.com/meet/226?p=Ak. E-mail rogeria.zapparoli@tecumseh.com, site www.alcast.com.br');
+ok('link do Teams vira link, sem o ponto final', parts.some((p) => p.href === 'https://teams.microsoft.com/meet/226?p=Ak' && !p.mail), parts);
+ok('e-mail vira mailto (abre a Caixa), sem a vírgula', parts.some((p) => p.href === 'mailto:rogeria.zapparoli@tecumseh.com' && p.mail));
+ok('www. ganha https://', parts.some((p) => p.href === 'https://www.alcast.com.br'));
+ok('texto volta inteiro ao juntar', parts.map((p) => p.text).join('') === 'Ingressar: https://teams.microsoft.com/meet/226?p=Ak. E-mail rogeria.zapparoli@tecumseh.com, site www.alcast.com.br');
+ok('sem link: um pedaço só', splitLinks('Pauta da reunião').length === 1 && !splitLinks('Pauta').some((p) => p.href));
 
 console.log(failed ? `\n${failed} falha(s).` : '\nagenda-describe: tudo certo');
 process.exit(failed ? 1 : 0);
