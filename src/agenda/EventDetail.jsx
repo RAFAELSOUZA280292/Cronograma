@@ -10,6 +10,7 @@ import RsvpButtons from './RsvpButtons.jsx';
 import { canRespond, getAgendaEvent, cancelAgendaEvent, proposeNewTime, brParts, brIso, fmtBrWhen, guestsWord } from './agendaActions.js';
 import { RSVP_META } from './dayLoad.js';
 import { attendeePeople, attendeesCopyText, attendeesMailto } from './attendeeMail.js';
+import { tidyDescription } from './describe.js';
 import './agenda.css';
 
 const RESP = {
@@ -104,7 +105,7 @@ export function ProposeTimeForm({ start, end, onSubmit, onCancel, busy, submitLa
   );
 }
 
-const meetLabel = (url) => (/meet\.google\.com/i.test(url) ? 'Entrar no Google Meet' : /teams\.(microsoft|live)\.com/i.test(url) ? 'Entrar no Microsoft Teams' : 'Entrar na reunião');
+export const meetLabel = (url) => (/meet\.google\.com/i.test(url) ? 'Entrar no Google Meet' : /teams\.(microsoft|live)\.com/i.test(url) ? 'Entrar no Microsoft Teams' : 'Entrar na reunião');
 
 export default function EventDetailModal({ id, initial, conflicts, onClose, onRespond, respondBusy, onEdit, onChanged }) {
   // Link iCal (§128) é só leitura: não há detalhe no provedor para buscar, o que veio na lista é tudo.
@@ -200,7 +201,7 @@ export default function EventDetailModal({ id, initial, conflicts, onClose, onRe
         {ev && !ev.isOrganizer && ev.organizerName && <div><b>Organizador:</b> {ev.organizerName}</div>}
         {ev && ev.isOrganizer && <div className="agd-muted">Você é o organizador.</div>}
         {ev && ev.recurring && <div className="agd-muted"><Repeat size={13} aria-hidden="true" /> Reunião que se repete: o que você mudar aqui vale só para esta data.</div>}
-        {base.description && <div className="agd-desc">{base.description}</div>}
+        {base.description && <div className="agd-desc">{tidyDescription(base.description)}</div>}
         {readOnly && base.organizer && <div><b>Organizador:</b> {base.organizer}</div>}
         {readOnly ? null : ev ? <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} subject={base.title || ''} /> : <Skeleton height={60} />}
         {invited && (

@@ -288,6 +288,30 @@ export function meetLinkOf(ev) {
   return v ? v.uri : '';
 }
 
+// Link da reunião também quando o convite veio do Outlook/Teams sem conferenceData (2026-11-06, §168): o primeiro endereço de
+// Teams, Zoom, Meet ou Webex no local ou na descrição.
+const MEETING_URL = /https:\/\/(?:teams\.microsoft\.com\/(?:l\/meetup-join|meet)\/|teams\.live\.com\/meet\/|[\w-]+\.zoom\.us\/j\/|zoom\.us\/j\/|meet\.google\.com\/|[\w-]+\.webex\.com\/(?:meet|join|[\w-]+\/j\.php))[^\s<>"')\]]*/i;
+export function meetingLinkFrom(ev) {
+  const direct = meetLinkOf(ev);
+  if (direct) return direct;
+  const m = MEETING_URL.exec(`${(ev && ev.location) || ''}\n${(ev && ev.description) || ''}`);
+  return m ? m[0].replace(/[.,;]+$/, '') : '';
+}
+
+// Participantes como a tela mostra. `me`: quem está olhando — na agenda de um colega o "self" do Google é o colega, não você.
+export function mapAttendees(ev, me) {
+  const mine = String(me || '').toLowerCase();
+  return (Array.isArray(ev && ev.attendees) ? ev.attendees : []).filter((a) => a && !a.resource).map((a) => {
+    const email = String(a.email || '').toLowerCase();
+    return {
+      email, name: a.displayName || '',
+      response: RSVP.has(a.responseStatus) ? a.responseStatus : 'needsAction',
+      organizer: !!a.organizer, self: me === undefined ? !!a.self : (!!mine && email === mine),
+      optional: !!a.optional, comment: a.comment || '',
+    };
+  });
+}
+
 // Corpo do patch de um evento que já existe: mantém o Meet que ele já tem (conferenceData do corpo só vale se ainda não houver link), preserva a resposta
 // (aceitou/recusou) de quem já estava convidado e, com `keepGuests`, nem mexe na lista (patch só muda o que é enviado).
 export function composePatch(cur, body, opts = {}) {
@@ -352,15 +376,7 @@ const RSVP = new Set(['accepted', 'declined', 'tentative', 'needsAction']);
 // Tudo que a tela de detalhe mostra: participantes com a resposta de cada um, link do Meet, lembrete e se você pode editar.
 export function mapEventDetail(ev) {
   const base = mapGoogleEvent(ev);
-  const attendees = (Array.isArray(ev.attendees) ? ev.attendees : []).filter((a) => a && !a.resource).map((a) => ({
-    email: String(a.email || '').toLowerCase(),
-    name: a.displayName || '',
-    response: RSVP.has(a.responseStatus) ? a.responseStatus : 'needsAction',
-    organizer: !!a.organizer,
-    self: !!a.self,
-    optional: !!a.optional,
-    comment: a.comment || '',
-  }));
+  const attendees = mapAttendees(ev);
   const isOrganizer = !!(ev.organizer && ev.organizer.self);
   const overrides = (ev.reminders && Array.isArray(ev.reminders.overrides)) ? ev.reminders.overrides : [];
   const popup = overrides.find((r) => r && r.method === 'popup') || overrides[0];
@@ -374,7 +390,7 @@ export function mapEventDetail(ev) {
     isOrganizer,
     canEdit: isOrganizer || !!ev.guestsCanModify,
     recurring: !!ev.recurringEventId || (Array.isArray(ev.recurrence) && ev.recurrence.length > 0),
-    meetLink: meetLinkOf(ev),
+    meetLink: meetingLinkFrom(ev),
     reminderMinutes: ev.reminders && ev.reminders.useDefault ? null : (popup ? popup.minutes : -1),
     myComment: (attendees.find((a) => a.self) || {}).comment || '',
   };

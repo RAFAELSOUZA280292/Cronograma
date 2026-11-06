@@ -5,7 +5,7 @@
 
 import { google } from 'googleapis';
 import { pool } from './db.js';
-import { getAuthedClientForUser, mapGoogleEvent } from './googleCalendar.js';
+import { getAuthedClientForUser, mapGoogleEvent, mapAttendees, meetingLinkFrom } from './googleCalendar.js';
 
 export const MAX_TEAM = 20;
 export const MAX_PEOPLE = 6;
@@ -43,13 +43,18 @@ export function cleanSubscriptions(list, myEmail) {
 }
 
 // Compromisso de um colega na grade: só leitura, na cor escolhida para a agenda dele. "Particular" no Google = "Ocupado".
-export function mapTeamEvent(sub, ev) {
+// §168: participantes, organizador e link da reunião também (o que o Google mostra quando você abre a agenda do colega); `me` = seu e-mail.
+export function mapTeamEvent(sub, ev, me) {
   const base = mapGoogleEvent(ev);
   const hidden = ev.visibility === 'private' || ev.visibility === 'confidential';
   return {
     id: teamEventId(sub.email, ev.id), source: 'team', account: `team:${sub.email}`, accountLabel: sub.name || sub.email, color: sub.color,
     title: hidden ? 'Ocupado' : base.title, description: hidden ? '' : base.description, location: hidden ? '' : base.location,
     start: base.start, end: base.end, allDay: base.allDay, status: base.status, transparent: base.transparent, owner: sub.email, readOnly: true,
+    attendees: hidden ? [] : mapAttendees(ev, me || ''),
+    organizerEmail: hidden || !ev.organizer ? '' : String(ev.organizer.email || '').toLowerCase(),
+    organizerName: hidden || !ev.organizer ? '' : (ev.organizer.displayName || ev.organizer.email || ''),
+    meetLink: hidden ? '' : meetingLinkFrom(ev),
   };
 }
 
@@ -78,12 +83,14 @@ export async function teamEvents(userId, subs, startISO, endISO, authed) {
   if (!list.length) return { events: [], calendars: [] };
   const client = await clientOf(userId, authed);
   const calendar = google.calendar({ version: 'v3', auth: client });
+  const { rows: meRows } = await pool.query('SELECT email, username FROM users WHERE id=$1', [userId]);
+  const me = meRows[0] ? normEmail(meRows[0].email || meRows[0].username) : '';
   const events = []; const calendars = [];
   const needBusy = [];
   await Promise.all(list.map(async (sub) => {
     try {
       const { data } = await calendar.events.list({ calendarId: sub.email, timeMin: new Date(startISO).toISOString(), timeMax: new Date(endISO).toISOString(), singleEvents: true, orderBy: 'startTime', maxResults: 250 });
-      events.push(...(data.items || []).filter((e) => e.status !== 'cancelled').map((e) => mapTeamEvent(sub, e)).filter((e) => e.start && e.end));
+      events.push(...(data.items || []).filter((e) => e.status !== 'cancelled').map((e) => mapTeamEvent(sub, e, me)).filter((e) => e.start && e.end));
       calendars.push({ email: sub.email, status: 'details' });
     } catch (e) {
       if (e.code === 404 || e.code === 403) needBusy.push(sub);

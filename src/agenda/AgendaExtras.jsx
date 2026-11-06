@@ -1,13 +1,15 @@
 // Peças da Agenda "como a do Google", parte 2 (2026-11-02, §138): Criar › Tarefa e Ausente, detalhe de tarefa e de compromisso de
 // colega, seletor de cor livre das agendas e resultados da busca. Tudo grava no Google da própria pessoa (rotas /api/agenda/*).
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, RotateCcw, Trash2, Search, ArrowLeft, Plane, ListTodo } from 'lucide-react';
+import { Check, RotateCcw, Trash2, Search, ArrowLeft, Plane, ListTodo, Video } from 'lucide-react';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, Callout } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { apiDelete, apiPatch, apiPost } from '../lib/api.js';
 import { useDirtyForm } from '../App.jsx';
 import { fmtBrWhen, brIso } from './agendaActions.js';
+import { AttendeeList, meetLabel } from './EventDetail.jsx';
+import { tidyDescription } from './describe.js';
 import './agenda.css';
 
 const label = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)' };
@@ -136,9 +138,17 @@ export function TeamEventDetail({ ev, onClose, onSchedule }) {
     >
       <div className="agd-detail">
         <div><b>Agenda de:</b> {ev.accountLabel || ev.owner}</div>
+        {ev.meetLink && (
+          <a className="ui-btn primary agd-meet" href={ev.meetLink} target="_blank" rel="noopener noreferrer">
+            <Video size={16} aria-hidden="true" /> {meetLabel(ev.meetLink)}
+          </a>
+        )}
         {ev.location && <div><b>Local:</b> {ev.location}</div>}
+        {ev.organizerName && <div><b>Organizador:</b> {ev.organizerName}</div>}
         {ev.busyOnly && <div className="agd-muted">Esta pessoa só compartilha livre/ocupado com você.</div>}
-        {ev.description && <div className="agd-desc">{ev.description}</div>}
+        {/* §168: participantes como no Google, com Copiar e-mails / E-mail para todos (§167). */}
+        <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} subject={ev.title || ''} />
+        {ev.description && <div className="agd-desc">{tidyDescription(ev.description)}</div>}
       </div>
     </Modal>
   );
